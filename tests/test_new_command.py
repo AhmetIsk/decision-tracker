@@ -1,10 +1,10 @@
 import subprocess
+import tempfile
 import unittest
 from contextlib import contextmanager
 from pathlib import Path
 
 import yaml
-from click.testing import CliRunner as ClickCliRunner
 from typer.testing import CliRunner
 
 from dt.cli import app
@@ -22,10 +22,16 @@ def _pushd(path: Path):
         os.chdir(original)
 
 
+@contextmanager
+def _isolated_filesystem():
+    with tempfile.TemporaryDirectory() as directory:
+        with _pushd(Path(directory)):
+            yield
+
+
 class TestDtNew(unittest.TestCase):
     def setUp(self) -> None:
         self.runner = CliRunner()
-        self.fs_runner = ClickCliRunner()
 
     def _read_front_matter(self, path: Path) -> dict:
         content = path.read_text(encoding="utf-8")
@@ -50,7 +56,7 @@ class TestDtNew(unittest.TestCase):
         return result
 
     def test_new_allocates_next_id_from_existing_records(self) -> None:
-        with self.fs_runner.isolated_filesystem():
+        with _isolated_filesystem():
             decisions_dir = Path("decisions")
             decisions_dir.mkdir()
             decisions_dir.joinpath("DR-0001-first.md").write_text(
@@ -108,7 +114,7 @@ class TestDtNew(unittest.TestCase):
             self.assertEqual(created.name, "DR-0010-my-new-decision.md")
 
     def test_new_creates_required_content_and_stakeholders_dedup(self) -> None:
-        with self.fs_runner.isolated_filesystem():
+        with _isolated_filesystem():
             result = self.runner.invoke(
                 app,
                 [
@@ -154,7 +160,7 @@ class TestDtNew(unittest.TestCase):
             self.assertFalse(Path("reports/report.md").exists())
 
     def test_new_discovers_root_from_subdirectory(self) -> None:
-        with self.fs_runner.isolated_filesystem():
+        with _isolated_filesystem():
             decisions_dir = Path("decisions")
             nested = Path("nested") / "deeper"
             decisions_dir.mkdir()
@@ -183,7 +189,7 @@ class TestDtNew(unittest.TestCase):
             self.assertFalse((nested / "decisions").exists())
 
     def test_new_adds_model_template_fields(self) -> None:
-        with self.fs_runner.isolated_filesystem():
+        with _isolated_filesystem():
             result = self.runner.invoke(
                 app,
                 [
@@ -218,7 +224,7 @@ class TestDtNew(unittest.TestCase):
             )
 
     def test_new_adds_evaluation_protocol_template_fields(self) -> None:
-        with self.fs_runner.isolated_filesystem():
+        with _isolated_filesystem():
             result = self.runner.invoke(
                 app,
                 [
@@ -243,7 +249,7 @@ class TestDtNew(unittest.TestCase):
             self.assertEqual(front["eval_spec"]["metrics"][0]["name"], "TODO")
 
     def test_new_git_head_adds_current_commit_link(self) -> None:
-        with self.fs_runner.isolated_filesystem():
+        with _isolated_filesystem():
             self._run_git(["--version"])
             self._run_git(["init"])
             self._run_git(["config", "user.email", "test@example.com"])
@@ -287,7 +293,7 @@ class TestDtNew(unittest.TestCase):
             )
 
     def test_new_git_head_fails_without_git_head(self) -> None:
-        with self.fs_runner.isolated_filesystem():
+        with _isolated_filesystem():
             result = self.runner.invoke(
                 app,
                 [
