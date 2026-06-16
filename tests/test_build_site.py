@@ -91,10 +91,33 @@ def test_build_site_requires_viewer_config_placeholder(tmp_path: Path):
     )
 
     result = subprocess.run(
-        [sys.executable, str(repo / "scripts" / "build_site.py"), "--root", str(work)],
+        [
+            sys.executable,
+            str(repo / "scripts" / "build_site.py"),
+            "--root",
+            str(work),
+            "--viewer-dir",
+            str(work / "viewer"),
+        ],
         capture_output=True,
         text=True,
     )
 
     assert result.returncode != 0
     assert "DT_VIEWER_CONFIG placeholder" in result.stderr
+
+
+def test_build_site_command_uses_packaged_assets(tmp_path: Path):
+    work = _prepare_site_workdir(tmp_path)
+    shutil.rmtree(work / "viewer")
+
+    result = subprocess.run(
+        [sys.executable, "-m", "dt.cli", "build-site", "--root", str(work)],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (work / "_site" / "index.html").exists()
+    assert (work / "_site" / "app.js").exists()
+    assert (work / "_site" / "styles.css").exists()

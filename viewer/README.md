@@ -49,7 +49,7 @@ The viewer uses browser `fetch`, so serving over HTTP is more reliable than open
 ## Build Published Site
 
 ```bash
-PYTHONPATH=src python3 scripts/build_site.py --root .
+PYTHONPATH=src python3 -m dt.cli build-site --root .
 python3 -m http.server 8000 --directory _site
 ```
 

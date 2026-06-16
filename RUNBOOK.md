@@ -232,9 +232,11 @@ You can use the project in two ways.
 If `dt` is installed as a console script:
 
 ```bash
+dt init
 dt new --title "Adopt Transformer encoder as baseline model" --stage training --type model --owner ahmet
 dt validate --all
 dt report
+dt build-site
 ```
 
 If you are working directly from source without installation:
@@ -243,6 +245,7 @@ If you are working directly from source without installation:
 PYTHONPATH=src python3 -m dt.cli new --title "Adopt Transformer encoder as baseline model" --stage training --type model --owner ahmet
 PYTHONPATH=src python3 -m dt.cli validate --all
 PYTHONPATH=src python3 -m dt.cli report
+PYTHONPATH=src python3 -m dt.cli build-site
 ```
 
 All commands accept `--root PATH`. If you omit it, the CLI walks upward from the current directory and uses the first directory containing `decisions/` or `.git`. This means you can run `dt validate --all` or `dt report` from a subdirectory of the repository.
@@ -281,6 +284,24 @@ Result:
 - fills in the correct template scaffold
 - optionally adds the current Git commit as an `implements` code link when `--git-head` is used
 - prints `Created decisions/DR-XXXX-...`
+
+### `dt init`
+
+Initializes Decision Tracker in a repository.
+
+Example:
+
+```bash
+dt init
+```
+
+Creates:
+
+- `decisions/.gitkeep`
+- `docs/README.md`
+- `.github/workflows/pages.yml`
+
+Existing scaffold files are not overwritten unless `--force` is passed.
 
 ### `dt validate`
 
@@ -646,7 +667,7 @@ http://localhost:8000/viewer/
 The repository can build a clean static site artifact for GitHub Pages:
 
 ```bash
-PYTHONPATH=src python3 scripts/build_site.py --root .
+PYTHONPATH=src python3 -m dt.cli build-site --root .
 ```
 
 This command:
@@ -655,7 +676,7 @@ This command:
 - stops if validation has failures
 - preserves validation warnings in `_site/data/validation.txt`
 - runs `dt report`
-- copies the viewer into `_site/`
+- copies packaged viewer assets into `_site/`
 - copies generated JSON, `report.md`, `metrics.csv`, and `site-meta.json` into `_site/data/`
 - generates `_site/report.html` as a printable executive summary and audit report over the generated data
 

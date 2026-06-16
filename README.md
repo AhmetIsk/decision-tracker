@@ -31,12 +31,28 @@ The goal is not workflow automation. The goal is lightweight, Git-native decisio
 
 ## Commands
 
+Install from this repository:
+
+```bash
+pipx install git+https://github.com/AhmetIsk/decision-tracker.git
+```
+
+After a PyPI release, the intended short install command is:
+
+```bash
+pipx install decision-tracker
+```
+
+The installable package is named `decision-tracker`; the CLI command is `dt`.
+
 If `dt` is installed:
 
 ```bash
+dt init
 dt new --title "Adopt Transformer encoder as baseline model" --stage training --type model --owner ahmet
 dt validate --all
 dt report
+dt build-site
 ```
 
 If running directly from source:
@@ -45,6 +61,7 @@ If running directly from source:
 PYTHONPATH=src python3 -m dt.cli new --title "Adopt Transformer encoder as baseline model" --stage training --type model --owner ahmet
 PYTHONPATH=src python3 -m dt.cli validate --all
 PYTHONPATH=src python3 -m dt.cli report
+PYTHONPATH=src python3 -m dt.cli build-site
 ```
 
 All commands accept `--root PATH`. If omitted, the CLI walks upward from the current directory to find `decisions/` or `.git`, so commands also work from repository subdirectories.
@@ -107,7 +124,7 @@ http://localhost:8000/viewer/
 Build the clean static site artifact for GitHub Pages:
 
 ```bash
-PYTHONPATH=src python3 scripts/build_site.py --root .
+PYTHONPATH=src python3 -m dt.cli build-site --root .
 ```
 
 This creates `_site/` with the viewer and generated data under `_site/data/`. The GitHub Actions workflow validates and builds this artifact for pull requests, and deploys it to GitHub Pages on pushes to `main`.
@@ -128,6 +145,28 @@ Example use cases:
 - capture a fixed evaluation split and dataset version
 - propose a new threshold before evidence exists
 - supersede an older rule with a better-structured decision
+
+## Use In Another Repository
+
+In another ML project:
+
+```bash
+pipx install git+https://github.com/AhmetIsk/decision-tracker.git
+cd my-ml-project
+dt init
+dt new --title "Choose baseline model" --stage training --type model --owner alice --git-head
+dt validate --all
+dt report
+dt build-site
+```
+
+`dt init` creates the minimal repository scaffold:
+
+- `decisions/.gitkeep`
+- `docs/README.md`
+- `.github/workflows/pages.yml`
+
+It does not copy this repository's example decisions into the target project.
 
 ## Validation
 

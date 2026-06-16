@@ -14,6 +14,9 @@ from typing import Any, Optional
 import typer
 import yaml
 
+from dt.site import build_site as build_static_site
+from dt.site import workflow_template
+
 app = typer.Typer(help="Decision Tracker CLI")
 
 STATUSES = {"proposed", "accepted", "rejected", "superseded", "deprecated"}
@@ -265,6 +268,34 @@ def _parse_stakeholders_csv(raw: str) -> list[str]:
         if key not in dedup:
             dedup[key] = clean
     return list(dedup.values())
+
+
+def _write_scaffold_file(path: Path, content: str, force: bool, created: list[str], skipped: list[str]) -> None:
+    if path.exists() and not force:
+        skipped.append(path.as_posix())
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+    created.append(path.as_posix())
+
+
+def _touch_scaffold_file(path: Path, force: bool, created: list[str], skipped: list[str]) -> None:
+    if path.exists() and not force:
+        skipped.append(path.as_posix())
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("", encoding="utf-8")
+    created.append(path.as_posix())
+
+
+def _display_path(path: str, root: Path) -> str:
+    candidate = Path(path)
+    if candidate.is_absolute():
+        try:
+            return candidate.relative_to(root).as_posix()
+        except ValueError:
+            return candidate.as_posix()
+    return path
 
 
 def _slugify_title(value: str) -> str:
@@ -869,6 +900,51 @@ def _build_decision(path: Path) -> DecisionComputed:
         unique_decision_targets_total=unique_decision_targets_total,
         alternatives_is_na=alternatives_is_na,
     )
+
+
+@app.command()
+def init(
+    root: Optional[Path] = typer.Option(None, "--root", help="Repository root to initialize."),
+    force: bool = typer.Option(False, "--force", help="Overwrite scaffolded files if they already exist."),
+) -> None:
+    """Initialize Decision Tracker files in the current repository."""
+    root = _resolve_root(root)
+    created: list[str] = []
+    skipped: list[str] = []
+
+    try:
+        (root / "decisions").mkdir(parents=True, exist_ok=True)
+        (root / "docs").mkdir(parents=True, exist_ok=True)
+        _touch_scaffold_file(root / "decisions" / ".gitkeep", force, created, skipped)
+        _write_scaffold_file(
+            root / "docs" / "README.md",
+            "# Decision support notes\n\nUse this directory for notes linked from Decision Records with `path:docs/...` refs.\n",
+            force,
+            created,
+            skipped,
+        )
+        _write_scaffold_file(root / ".github" / "workflows" / "pages.yml", workflow_template(), force, created, skipped)
+    except OSError as exc:
+        typer.echo(f"FAIL INIT_IO_ERROR: {exc}")
+        raise typer.Exit(code=2)
+
+    for path in created:
+        typer.echo(f"Created {_display_path(path, root)}")
+    for path in skipped:
+        typer.echo(f"Exists {_display_path(path, root)}")
+    if not created and not skipped:
+        typer.echo("No scaffold changes needed")
+
+
+@app.command("build-site")
+def build_site_command(
+    root: Optional[Path] = typer.Option(None, "--root", help="Repository root containing decisions/."),
+    site_dir: Optional[Path] = typer.Option(None, "--site-dir", help="Output directory. Defaults to ROOT/_site."),
+) -> None:
+    """Build the static viewer site."""
+    resolved_root = _resolve_root(root)
+    resolved_site_dir = site_dir.resolve() if site_dir else resolved_root / "_site"
+    build_static_site(resolved_root, resolved_site_dir)
 
 
 @app.command()
