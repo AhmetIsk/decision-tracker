@@ -5,9 +5,31 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "decision-tracker"
 version = "0.1.0"
-description = "Decision Tracker CLI"
+description = "Git-native decision record tracker for ML workflow traceability"
+readme = "README.md"
 requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "Ahmet Isk" }]
+keywords = ["decision-records", "traceability", "machine-learning", "provenance", "cli"]
 dependencies = ["typer>=0.12", "PyYAML>=6.0"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Documentation",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.urls]
+Homepage = "https://github.com/AhmetIsk/decision-tracker"
+Repository = "https://github.com/AhmetIsk/decision-tracker"
+Issues = "https://github.com/AhmetIsk/decision-tracker/issues"
+Viewer = "https://ahmetisk.github.io/decision-tracker/"
 
 [project.scripts]
 dt = "dt.cli:app"

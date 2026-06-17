@@ -14,10 +14,11 @@ from typing import Any, Optional
 import typer
 import yaml
 
+from dt import __version__
 from dt.site import build_site as build_static_site
 from dt.site import workflow_template
 
-app = typer.Typer(help="Decision Tracker CLI")
+app = typer.Typer(help="Decision Tracker CLI", invoke_without_command=True, no_args_is_help=True)
 
 STATUSES = {"proposed", "accepted", "rejected", "superseded", "deprecated"}
 TYPES = {"model", "evaluation_protocol", "generic"}
@@ -46,10 +47,26 @@ REF_PATTERNS = [
 ]
 
 
+@app.callback()
+def main(
+    version: bool = typer.Option(False, "--version", help="Show the installed Decision Tracker version.", is_eager=True),
+) -> None:
+    if version:
+        typer.echo(f"decision-tracker {__version__}")
+        raise typer.Exit()
+
+
 @dataclass
 class ValidationMessage:
     code: str
     message: str
+
+
+@dataclass
+class ScaffoldChanges:
+    created: list[str] = field(default_factory=list)
+    replaced: list[str] = field(default_factory=list)
+    skipped: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -183,8 +200,12 @@ def _extract_front_matter(content: str) -> tuple[str, str]:
 
 def _heading_counts(markdown_body: str) -> dict[str, int]:
     counts = {name: 0 for name in REQUIRED_HEADINGS}
+    in_fence = False
     for line in markdown_body.splitlines():
-        if line.startswith("## "):
+        if _is_fence_marker(line):
+            in_fence = not in_fence
+            continue
+        if not in_fence and line.startswith("## "):
             heading = line[3:].strip()
             if heading in counts:
                 counts[heading] += 1
@@ -194,14 +215,25 @@ def _heading_counts(markdown_body: str) -> dict[str, int]:
 def _parse_headings(markdown_body: str) -> dict[str, str]:
     sections: dict[str, list[str]] = {}
     current: Optional[str] = None
+    in_fence = False
     for line in markdown_body.splitlines():
-        if line.startswith("## "):
+        if _is_fence_marker(line):
+            in_fence = not in_fence
+            if current is not None:
+                sections[current].append(line)
+            continue
+        if not in_fence and line.startswith("## "):
             current = line[3:].strip()
             sections.setdefault(current, [])
             continue
         if current is not None:
             sections[current].append(line)
     return {name: "\n".join(lines).strip() for name, lines in sections.items()}
+
+
+def _is_fence_marker(line: str) -> bool:
+    stripped = line.lstrip()
+    return stripped.startswith("```") or stripped.startswith("~~~")
 
 
 def _is_non_empty_string(value: Any) -> bool:
@@ -270,22 +302,24 @@ def _parse_stakeholders_csv(raw: str) -> list[str]:
     return list(dedup.values())
 
 
-def _write_scaffold_file(path: Path, content: str, force: bool, created: list[str], skipped: list[str]) -> None:
+def _write_scaffold_file(path: Path, content: str, force: bool, changes: ScaffoldChanges) -> None:
     if path.exists() and not force:
-        skipped.append(path.as_posix())
+        changes.skipped.append(path.as_posix())
         return
+    existed = path.exists()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
-    created.append(path.as_posix())
+    (changes.replaced if existed else changes.created).append(path.as_posix())
 
 
-def _touch_scaffold_file(path: Path, force: bool, created: list[str], skipped: list[str]) -> None:
+def _touch_scaffold_file(path: Path, force: bool, changes: ScaffoldChanges) -> None:
     if path.exists() and not force:
-        skipped.append(path.as_posix())
+        changes.skipped.append(path.as_posix())
         return
+    existed = path.exists()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("", encoding="utf-8")
-    created.append(path.as_posix())
+    (changes.replaced if existed else changes.created).append(path.as_posix())
 
 
 def _display_path(path: str, root: Path) -> str:
@@ -321,7 +355,33 @@ def _next_decision_id(decisions_dir: Path) -> str:
                 candidate = match.group(1)
         if candidate is not None:
             max_id = max(max_id, int(candidate.split("-")[1]))
-    return f"DR-{max_id + 1:04d}"
+    next_id = max_id + 1
+    if next_id > 9999:
+        raise ValueError("maximum decision id DR-9999 has been reached")
+    return f"DR-{next_id:04d}"
+
+
+def _validate_date_value(value: Any) -> Optional[ValidationMessage]:
+    if not isinstance(value, str):
+        return ValidationMessage(
+            "ENUM_INVALID",
+            'date must be a quoted string in YYYY-MM-DD form, for example date: "2026-03-14"',
+        )
+    if not DATE_RE.match(value):
+        return ValidationMessage("ENUM_INVALID", "date must match YYYY-MM-DD")
+    try:
+        date.fromisoformat(value)
+    except ValueError:
+        return ValidationMessage("ENUM_INVALID", "date must be a real calendar date in YYYY-MM-DD form")
+    return None
+
+
+def _validate_template_version_value(value: Any) -> Optional[ValidationMessage]:
+    if not isinstance(value, str):
+        return ValidationMessage("ENUM_INVALID", 'template_version must be the quoted string "1.0"')
+    if value != "1.0":
+        return ValidationMessage("ENUM_INVALID", "template_version must be 1.0")
+    return None
 
 
 def _template_payload(decision_type: str) -> dict[str, Any]:
@@ -675,16 +735,20 @@ def _validation_messages(
         errors.append(ValidationMessage("ID_FORMAT_INVALID", "id must match DR-\\d{4}"))
     elif isinstance(doc.get("id"), str) and doc["id"] in context.duplicate_ids:
         errors.append(ValidationMessage("ID_DUPLICATE", f"Duplicate decision id: {doc['id']}"))
-    if "date" in doc and (not isinstance(doc.get("date"), str) or not DATE_RE.match(str(doc["date"]))):
-        errors.append(ValidationMessage("ENUM_INVALID", "date must match YYYY-MM-DD"))
+    if "date" in doc:
+        date_error = _validate_date_value(doc.get("date"))
+        if date_error is not None:
+            errors.append(date_error)
     if "status" in doc and doc.get("status") not in STATUSES:
         errors.append(ValidationMessage("ENUM_INVALID", "invalid status"))
     if "type" in doc and doc.get("type") not in TYPES:
         errors.append(ValidationMessage("ENUM_INVALID", "invalid type"))
     if "stage" in doc and doc.get("stage") not in STAGES:
         errors.append(ValidationMessage("ENUM_INVALID", "invalid stage"))
-    if "template_version" in doc and doc.get("template_version") != "1.0":
-        errors.append(ValidationMessage("ENUM_INVALID", "template_version must be 1.0"))
+    if "template_version" in doc:
+        template_version_error = _validate_template_version_value(doc.get("template_version"))
+        if template_version_error is not None:
+            errors.append(template_version_error)
 
     if "owner" in doc and not _is_non_empty_string(doc.get("owner")):
         errors.append(ValidationMessage("YAML_MISSING_KEY", "owner must be a non-empty string"))
@@ -909,30 +973,41 @@ def init(
 ) -> None:
     """Initialize Decision Tracker files in the current repository."""
     root = _resolve_root(root)
-    created: list[str] = []
-    skipped: list[str] = []
+    changes = ScaffoldChanges()
 
     try:
         (root / "decisions").mkdir(parents=True, exist_ok=True)
         (root / "docs").mkdir(parents=True, exist_ok=True)
-        _touch_scaffold_file(root / "decisions" / ".gitkeep", force, created, skipped)
+        _touch_scaffold_file(root / "decisions" / ".gitkeep", force, changes)
+        _write_scaffold_file(
+            root / ".gitignore",
+            "# Decision Tracker generated outputs\n"
+            "_site/\n"
+            "reports/\n"
+            "decisions/index.json\n"
+            "decisions/graph.json\n"
+            "decisions/artifacts.json\n",
+            force,
+            changes,
+        )
         _write_scaffold_file(
             root / "docs" / "README.md",
             "# Decision support notes\n\nUse this directory for notes linked from Decision Records with `path:docs/...` refs.\n",
             force,
-            created,
-            skipped,
+            changes,
         )
-        _write_scaffold_file(root / ".github" / "workflows" / "pages.yml", workflow_template(), force, created, skipped)
+        _write_scaffold_file(root / ".github" / "workflows" / "pages.yml", workflow_template(), force, changes)
     except OSError as exc:
         typer.echo(f"FAIL INIT_IO_ERROR: {exc}")
         raise typer.Exit(code=2)
 
-    for path in created:
+    for path in changes.created:
         typer.echo(f"Created {_display_path(path, root)}")
-    for path in skipped:
+    for path in changes.replaced:
+        typer.echo(f"Replaced {_display_path(path, root)}")
+    for path in changes.skipped:
         typer.echo(f"Exists {_display_path(path, root)}")
-    if not created and not skipped:
+    if not changes.created and not changes.replaced and not changes.skipped:
         typer.echo("No scaffold changes needed")
 
 
@@ -940,11 +1015,12 @@ def init(
 def build_site_command(
     root: Optional[Path] = typer.Option(None, "--root", help="Repository root containing decisions/."),
     site_dir: Optional[Path] = typer.Option(None, "--site-dir", help="Output directory. Defaults to ROOT/_site."),
+    force: bool = typer.Option(False, "--force", help="Replace a non-empty output directory."),
 ) -> None:
     """Build the static viewer site."""
     resolved_root = _resolve_root(root)
     resolved_site_dir = site_dir.resolve() if site_dir else resolved_root / "_site"
-    build_static_site(resolved_root, resolved_site_dir)
+    build_static_site(resolved_root, resolved_site_dir, force=force)
 
 
 @app.command()
@@ -952,7 +1028,8 @@ def report(root: Optional[Path] = typer.Option(None, "--root", help="Repository 
     """Generate exports and metrics."""
     root = _resolve_root(root)
     decisions_dir = root / "decisions"
-    if not decisions_dir.exists():
+    if not decisions_dir.is_dir():
+        typer.echo(f"FAIL DECISIONS_DIR_MISSING: No decisions/ directory found at {root}. Run `dt init` first.")
         raise typer.Exit(code=2)
 
     files = sorted(decisions_dir.glob("*.md"), key=lambda path: path.name)
@@ -1224,7 +1301,8 @@ def validate(
     """Validate one record or all records."""
     root = _resolve_root(root)
     decisions_dir = root / "decisions"
-    if not decisions_dir.exists():
+    if not decisions_dir.is_dir():
+        typer.echo(f"FAIL DECISIONS_DIR_MISSING: No decisions/ directory found at {root}. Run `dt init` first.")
         raise typer.Exit(code=2)
 
     records = [_load_record(path) for path in sorted(decisions_dir.glob("DR-*.md"), key=lambda path: path.name)]
@@ -1274,7 +1352,9 @@ def new(
     root = _resolve_root(root)
     decisions_dir = root / "decisions"
     try:
-        decisions_dir.mkdir(parents=True, exist_ok=True)
+        if not decisions_dir.is_dir():
+            typer.echo(f"FAIL DECISIONS_DIR_MISSING: No decisions/ directory found at {root}. Run `dt init` first.")
+            raise typer.Exit(code=2)
         next_id = _next_decision_id(decisions_dir)
         slug = _slugify_title(title)
         out_path = decisions_dir / f"{next_id}-{slug}.md"
@@ -1334,7 +1414,11 @@ def new(
             ]
         )
         out_path.write_text(body, encoding="utf-8")
-    except OSError:
+    except ValueError as exc:
+        typer.echo(f"FAIL ID_RANGE_EXCEEDED: {exc}")
+        raise typer.Exit(code=2)
+    except OSError as exc:
+        typer.echo(f"FAIL NEW_IO_ERROR: {exc}")
         raise typer.Exit(code=2)
 
     relative_path = out_path.relative_to(root).as_posix()

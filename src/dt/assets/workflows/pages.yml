@@ -41,7 +41,7 @@ jobs:
           python-version: "3.11"
 
       - name: Install Decision Tracker
-        run: python -m pip install git+https://github.com/AhmetIsk/decision-tracker.git
+        run: python -m pip install decision-tracker
 
       - name: Validate decisions
         run: dt validate --all

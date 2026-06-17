@@ -77,6 +77,7 @@ def test_report_missing_decisions_dir_is_filesystem_error(tmp_path: Path):
 
     result = subprocess.run(["dt", "report"], cwd=work, capture_output=True, text=True)
     assert result.returncode == 2
+    assert "FAIL DECISIONS_DIR_MISSING" in result.stdout
 
 
 def test_report_discovers_root_from_subdirectory(tmp_path: Path):

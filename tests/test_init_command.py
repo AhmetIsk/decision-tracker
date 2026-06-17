@@ -12,6 +12,10 @@ def test_init_creates_minimal_scaffold(tmp_path: Path):
 
     assert result.exit_code == 0, result.output
     assert (tmp_path / "decisions" / ".gitkeep").exists()
+    gitignore = tmp_path / ".gitignore"
+    assert gitignore.exists()
+    assert "_site/" in gitignore.read_text(encoding="utf-8")
+    assert "decisions/index.json" in gitignore.read_text(encoding="utf-8")
     assert (tmp_path / "docs" / "README.md").exists()
     workflow = tmp_path / ".github" / "workflows" / "pages.yml"
     assert workflow.exists()
@@ -44,3 +48,4 @@ def test_init_force_overwrites_scaffolded_files(tmp_path: Path):
 
     assert result.exit_code == 0, result.output
     assert "dt build-site --root ." in workflow.read_text(encoding="utf-8")
+    assert "Replaced" in result.output

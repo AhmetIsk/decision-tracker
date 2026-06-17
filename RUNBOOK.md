@@ -242,6 +242,7 @@ dt build-site
 If you are working directly from source without installation:
 
 ```bash
+PYTHONPATH=src python3 -m dt.cli init
 PYTHONPATH=src python3 -m dt.cli new --title "Adopt Transformer encoder as baseline model" --stage training --type model --owner ahmet
 PYTHONPATH=src python3 -m dt.cli validate --all
 PYTHONPATH=src python3 -m dt.cli report
@@ -285,6 +286,8 @@ Result:
 - optionally adds the current Git commit as an `implements` code link when `--git-head` is used
 - prints `Created decisions/DR-XXXX-...`
 
+`dt new` expects an initialized project. Run `dt init` first, or pass `--root` pointing at a directory that already contains `decisions/`.
+
 ### `dt init`
 
 Initializes Decision Tracker in a repository.
@@ -299,6 +302,7 @@ Creates:
 
 - `decisions/.gitkeep`
 - `docs/README.md`
+- `.gitignore` entries for generated Decision Tracker outputs
 - `.github/workflows/pages.yml`
 
 Existing scaffold files are not overwritten unless `--force` is passed.
@@ -347,6 +351,18 @@ Writes:
 - `reports/report.md`
 
 If validation errors are found, `dt report` prints the failures and exits before writing generated outputs. This prevents invalid records from producing misleading metrics.
+
+### `dt build-site`
+
+Builds a static viewer site under `_site/` by default.
+
+Example:
+
+```bash
+PYTHONPATH=src python3 -m dt.cli build-site --root .
+```
+
+The command refuses to replace an arbitrary non-empty `--site-dir` unless `--force` is passed. This prevents accidental deletion when a custom output path is mistyped.
 
 ## Typical Workflow
 

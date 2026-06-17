@@ -29,6 +29,10 @@ def _isolated_filesystem():
             yield
 
 
+def _init_project() -> None:
+    Path("decisions").mkdir()
+
+
 class TestDtNew(unittest.TestCase):
     def setUp(self) -> None:
         self.runner = CliRunner()
@@ -115,6 +119,7 @@ class TestDtNew(unittest.TestCase):
 
     def test_new_creates_required_content_and_stakeholders_dedup(self) -> None:
         with _isolated_filesystem():
+            _init_project()
             result = self.runner.invoke(
                 app,
                 [
@@ -190,6 +195,7 @@ class TestDtNew(unittest.TestCase):
 
     def test_new_adds_model_template_fields(self) -> None:
         with _isolated_filesystem():
+            _init_project()
             result = self.runner.invoke(
                 app,
                 [
@@ -225,6 +231,7 @@ class TestDtNew(unittest.TestCase):
 
     def test_new_adds_evaluation_protocol_template_fields(self) -> None:
         with _isolated_filesystem():
+            _init_project()
             result = self.runner.invoke(
                 app,
                 [
@@ -257,6 +264,7 @@ class TestDtNew(unittest.TestCase):
             Path("tracked.txt").write_text("x\n", encoding="utf-8")
             self._run_git(["add", "tracked.txt"])
             self._run_git(["commit", "-m", "init"])
+            _init_project()
             head = self._run_git(["rev-parse", "--verify", "HEAD"]).stdout.strip()
 
             result = self.runner.invoke(
@@ -294,6 +302,7 @@ class TestDtNew(unittest.TestCase):
 
     def test_new_git_head_fails_without_git_head(self) -> None:
         with _isolated_filesystem():
+            _init_project()
             result = self.runner.invoke(
                 app,
                 [
@@ -311,6 +320,67 @@ class TestDtNew(unittest.TestCase):
             )
             self.assertEqual(result.exit_code, 2, msg=result.output)
             self.assertIn("FAIL GIT_HEAD_UNAVAILABLE", result.output)
+
+    def test_new_requires_initialized_decisions_directory(self) -> None:
+        with _isolated_filesystem():
+            result = self.runner.invoke(
+                app,
+                [
+                    "new",
+                    "--title",
+                    "Wrong Directory",
+                    "--stage",
+                    "training",
+                    "--type",
+                    "generic",
+                    "--owner",
+                    "ahmet",
+                ],
+            )
+
+            self.assertEqual(result.exit_code, 2, msg=result.output)
+            self.assertIn("FAIL DECISIONS_DIR_MISSING", result.output)
+            self.assertFalse(Path("decisions").exists())
+
+    def test_new_refuses_id_after_dr_9999(self) -> None:
+        with _isolated_filesystem():
+            decisions_dir = Path("decisions")
+            decisions_dir.mkdir()
+            decisions_dir.joinpath("DR-9999-last.md").write_text(
+                "---\n"
+                "id: DR-9999\n"
+                "title: last\n"
+                "status: proposed\n"
+                "type: generic\n"
+                "stage: data\n"
+                "date: '2026-01-01'\n"
+                "owner: ahmet\n"
+                "stakeholders: []\n"
+                "template_version: '1.0'\n"
+                "links: []\n"
+                "---\n"
+                "\n"
+                "## Context\nx\n\n## Decision\nx\n\n## Rationale\nx\n\n## Alternatives\nN/A\n\n## Consequences\nx\n",
+                encoding="utf-8",
+            )
+
+            result = self.runner.invoke(
+                app,
+                [
+                    "new",
+                    "--title",
+                    "Overflow",
+                    "--stage",
+                    "training",
+                    "--type",
+                    "generic",
+                    "--owner",
+                    "ahmet",
+                ],
+            )
+
+            self.assertEqual(result.exit_code, 2, msg=result.output)
+            self.assertIn("FAIL ID_RANGE_EXCEEDED", result.output)
 
 
 if __name__ == "__main__":

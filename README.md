@@ -45,6 +45,8 @@ pipx install decision-tracker
 
 The installable package is named `decision-tracker`; the CLI command is `dt`.
 
+The scaffolded GitHub Pages workflow created by `dt init` uses `pip install decision-tracker`, so it is intended for the PyPI-published package path. Before the PyPI release, use the GitHub install command locally or edit the scaffolded workflow install step.
+
 If `dt` is installed:
 
 ```bash
@@ -58,13 +60,14 @@ dt build-site
 If running directly from source:
 
 ```bash
+PYTHONPATH=src python3 -m dt.cli init
 PYTHONPATH=src python3 -m dt.cli new --title "Adopt Transformer encoder as baseline model" --stage training --type model --owner ahmet
 PYTHONPATH=src python3 -m dt.cli validate --all
 PYTHONPATH=src python3 -m dt.cli report
 PYTHONPATH=src python3 -m dt.cli build-site
 ```
 
-All commands accept `--root PATH`. If omitted, the CLI walks upward from the current directory to find `decisions/` or `.git`, so commands also work from repository subdirectories.
+All commands accept `--root PATH`. If omitted, the CLI walks upward from the current directory to find `decisions/` or `.git`, so commands also work from repository subdirectories. Run `dt init` before `dt new`; `new` refuses to create records in an uninitialized directory.
 
 Use `--git-head` with `new` to add the current Git commit as a stable `git:commit:<sha>` link:
 
@@ -129,6 +132,8 @@ PYTHONPATH=src python3 -m dt.cli build-site --root .
 
 This creates `_site/` with the viewer and generated data under `_site/data/`. The GitHub Actions workflow validates and builds this artifact for pull requests, and deploys it to GitHub Pages on pushes to `main`.
 
+For safety, `build-site` refuses to replace an arbitrary non-empty output directory. Use the default `_site/` output or pass `--force` only when you intentionally want to replace a custom site output directory.
+
 ## Examples
 
 Example decision refs:
@@ -164,6 +169,7 @@ dt build-site
 
 - `decisions/.gitkeep`
 - `docs/README.md`
+- `.gitignore` entries for generated Decision Tracker outputs
 - `.github/workflows/pages.yml`
 
 It does not copy this repository's example decisions into the target project.

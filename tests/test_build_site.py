@@ -32,6 +32,7 @@ def test_build_site_creates_clean_static_artifact(tmp_path: Path):
     site = work / "_site"
     data = site / "data"
     for path in [
+        site / ".decision-tracker-site",
         site / "index.html",
         site / "report.html",
         site / "app.js",
@@ -58,6 +59,53 @@ def test_build_site_creates_clean_static_artifact(tmp_path: Path):
 
     meta = json.loads((data / "site-meta.json").read_text(encoding="utf-8"))
     assert sorted(meta) == ["generated_from_commit", "source_branch"]
+
+
+def test_build_site_refuses_unknown_non_empty_site_dir(tmp_path: Path):
+    repo = Path(__file__).resolve().parents[1]
+    work = _prepare_site_workdir(tmp_path)
+    site = tmp_path / "victim"
+    site.mkdir()
+    protected = site / "important.txt"
+    protected.write_text("do not delete\n", encoding="utf-8")
+
+    result = subprocess.run(
+        [sys.executable, str(repo / "scripts" / "build_site.py"), "--root", str(work), "--site-dir", str(site)],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 2
+    assert "FAIL SITE_DIR_NOT_EMPTY" in result.stderr
+    assert protected.exists()
+
+
+def test_build_site_force_replaces_unknown_non_empty_site_dir(tmp_path: Path):
+    repo = Path(__file__).resolve().parents[1]
+    work = _prepare_site_workdir(tmp_path)
+    site = tmp_path / "victim"
+    site.mkdir()
+    protected = site / "important.txt"
+    protected.write_text("replace me\n", encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(repo / "scripts" / "build_site.py"),
+            "--root",
+            str(work),
+            "--site-dir",
+            str(site),
+            "--force",
+        ],
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert not protected.exists()
+    assert (site / ".decision-tracker-site").exists()
+    assert (site / "index.html").exists()
 
 
 def test_build_site_stops_on_validation_failure(tmp_path: Path):

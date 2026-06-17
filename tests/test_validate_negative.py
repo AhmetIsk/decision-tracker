@@ -41,6 +41,34 @@ def test_validate_fails_on_invalid_enum(tmp_path: Path):
     assert "ENUM_INVALID" in (result.stdout + result.stderr)
 
 
+def test_validate_rejects_invalid_calendar_date(tmp_path: Path):
+    work = _prepare_workdir(tmp_path)
+    target = next((work / "decisions").glob("DR-0001-*.md"))
+    text = target.read_text(encoding="utf-8").splitlines()
+    text = ["date: '2026-02-30'" if line.startswith("date: ") else line for line in text]
+    target.write_text("\n".join(text) + "\n", encoding="utf-8")
+
+    result = subprocess.run(["dt", "validate", "--all"], cwd=work, capture_output=True, text=True)
+    assert result.returncode == 3
+    assert "date must be a real calendar date" in result.stdout
+
+
+def test_validate_explains_unquoted_yaml_scalars(tmp_path: Path):
+    work = _prepare_workdir(tmp_path)
+    target = next((work / "decisions").glob("DR-0001-*.md"))
+    text = target.read_text(encoding="utf-8").splitlines()
+    text = [
+        "date: 2026-03-14" if line.startswith("date: ") else "template_version: 1.0" if line.startswith("template_version: ") else line
+        for line in text
+    ]
+    target.write_text("\n".join(text) + "\n", encoding="utf-8")
+
+    result = subprocess.run(["dt", "validate", "--all"], cwd=work, capture_output=True, text=True)
+    assert result.returncode == 3
+    assert "date must be a quoted string" in result.stdout
+    assert "template_version must be the quoted string" in result.stdout
+
+
 def test_validate_rejects_non_fixed_width_id(tmp_path: Path):
     work = tmp_path / "work"
     work.mkdir()
@@ -209,6 +237,42 @@ def test_validate_reports_duplicate_heading_with_contract_code(tmp_path: Path):
     result = subprocess.run(["dt", "validate", "--all"], cwd=work, capture_output=True, text=True)
     assert result.returncode == 3
     assert "HEADING_DUPLICATE" in result.stdout
+
+
+def test_validate_ignores_headings_inside_fenced_code(tmp_path: Path):
+    work = tmp_path / "work"
+    work.mkdir()
+    decisions_dir = work / "decisions"
+    decisions_dir.mkdir()
+    path = decisions_dir / "DR-0001-fenced.md"
+    path.write_text(
+        "---\n"
+        "id: DR-0001\n"
+        "title: Fenced heading example\n"
+        "status: proposed\n"
+        "type: generic\n"
+        "stage: data\n"
+        "date: '2026-03-14'\n"
+        "owner: ahmet\n"
+        "stakeholders: []\n"
+        "template_version: '1.0'\n"
+        "links: []\n"
+        "---\n"
+        "\n"
+        "## Context\n"
+        "The schema can be shown as Markdown:\n\n"
+        "```md\n"
+        "## Context\n"
+        "example\n"
+        "```\n\n"
+        "## Decision\nx\n\n## Rationale\nx\n\n## Alternatives\nN/A\n\n## Consequences\nx\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(["dt", "validate", "--all"], cwd=work, capture_output=True, text=True)
+    assert result.returncode == 0
+    assert "HEADING_DUPLICATE" not in result.stdout
+    assert "OK DR-0001" in result.stdout
 
 
 def test_validate_reports_empty_required_section(tmp_path: Path):
@@ -542,3 +606,4 @@ def test_validate_missing_decisions_dir_is_filesystem_error(tmp_path: Path):
 
     result = subprocess.run(["dt", "validate", "--all"], cwd=work, capture_output=True, text=True)
     assert result.returncode == 2
+    assert "FAIL DECISIONS_DIR_MISSING" in result.stdout
