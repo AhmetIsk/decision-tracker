@@ -7,7 +7,7 @@ from typing import Optional
 import typer
 
 from dt.constants import DISCOVER_KEYWORDS, RECONSTRUCTION_CONFIDENCE, STAGES, TYPES
-from dt.git import _git_log_candidates, _git_repo_root, _resolve_git_head
+from dt.git import GitLogError, _git_log_candidates, _git_repo_root, _resolve_git_head
 from dt.markdown import _write_decision_file
 from dt.paths import _next_decision_id, _resolve_root
 from dt.refs import _evidence_link_for_ref, _validate_evidence_refs
@@ -49,8 +49,18 @@ def discover_command(root: Optional[Path], since: Optional[str], limit: int, key
     keyword_values = _parse_list_text(keywords)
     if not keyword_values:
         raise typer.BadParameter("keywords must include at least one value")
+    if since is not None:
+        try:
+            date.fromisoformat(since)
+        except ValueError:
+            typer.echo(f"FAIL DISCOVER_GIT_FAILED: invalid --since value: {since}. Use YYYY-MM-DD.")
+            raise typer.Exit(code=2)
 
-    candidates = _git_log_candidates(resolved_root, keyword_values, since, limit)
+    try:
+        candidates = _git_log_candidates(resolved_root, keyword_values, since, limit)
+    except GitLogError as exc:
+        typer.echo(f"FAIL DISCOVER_GIT_FAILED: {exc}")
+        raise typer.Exit(code=2)
     if not candidates:
         typer.echo("No candidate decision evidence found.")
         return

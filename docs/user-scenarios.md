@@ -75,7 +75,7 @@ reconstruction:
   original_decision_date: "unknown"
   evidence_confidence: "medium"
   evidence_sources:
-    - git:commit:abc123
+    - git:commit:abc1234
   known_gaps:
     - Original meeting notes unavailable
 ```

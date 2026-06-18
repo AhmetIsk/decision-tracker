@@ -43,12 +43,27 @@ def _read_front_matter(path: Path) -> dict:
     return parsed
 
 
-def test_discover_prints_no_candidates_outside_git_repo(tmp_path: Path):
+def test_discover_fails_clearly_outside_git_repo(tmp_path: Path):
     result = _run(["dt", "discover", "--root", str(tmp_path)], tmp_path)
 
-    assert result.returncode == 0
-    assert "No candidate decision evidence found." in result.stdout
+    assert result.returncode == 2
+    assert "FAIL DISCOVER_GIT_FAILED" in result.stdout
     assert list(tmp_path.iterdir()) == []
+
+
+def test_discover_prints_no_candidates_when_git_scan_succeeds(tmp_path: Path):
+    work = tmp_path / "repo"
+    work.mkdir()
+    _run_git_or_skip(["--version"], work)
+    _run_git_or_skip(["init"], work)
+    _run_git_or_skip(["config", "user.email", "test@example.com"], work)
+    _run_git_or_skip(["config", "user.name", "Test User"], work)
+    _commit_file(work, "notes.txt", "notes\n", "Update readme text", "2026-01-01T00:00:00+0000")
+
+    result = _run(["dt", "discover", "--root", str(work), "--keywords", "hyperparameter"], work)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "No candidate decision evidence found." in result.stdout
 
 
 def test_discover_finds_git_commit_candidates_and_respects_limit_since_keywords(tmp_path: Path):
@@ -88,6 +103,21 @@ def test_discover_finds_git_commit_candidates_and_respects_limit_since_keywords(
     assert "Pin dataset version" not in result.stdout
 
 
+def test_discover_reports_invalid_since_as_git_failure(tmp_path: Path):
+    work = tmp_path / "repo"
+    work.mkdir()
+    _run_git_or_skip(["--version"], work)
+    _run_git_or_skip(["init"], work)
+    _run_git_or_skip(["config", "user.email", "test@example.com"], work)
+    _run_git_or_skip(["config", "user.name", "Test User"], work)
+    _commit_file(work, "notes.txt", "notes\n", "Pin dataset version", "2026-01-01T00:00:00+0000")
+
+    result = _run(["dt", "discover", "--root", str(work), "--since", "garbage date"], work)
+
+    assert result.returncode == 2
+    assert "FAIL DISCOVER_GIT_FAILED" in result.stdout
+
+
 def test_backfill_requires_initialized_decisions_dir(tmp_path: Path):
     result = _run(
         [
@@ -104,7 +134,7 @@ def test_backfill_requires_initialized_decisions_dir(tmp_path: Path):
             "--owner",
             "ahmet",
             "--evidence",
-            "git:commit:abc123",
+            "git:commit:abc1234",
         ],
         tmp_path,
     )
@@ -146,6 +176,118 @@ def test_backfill_rejects_invalid_evidence_refs(tmp_path: Path):
     assert not list(decisions.glob("DR-*.md"))
 
 
+def test_backfill_rejects_symbolic_and_too_short_git_commit_evidence(tmp_path: Path):
+    decisions = tmp_path / "decisions"
+    decisions.mkdir()
+
+    for ref in ("git:commit:HEAD", "git:commit:abc"):
+        result = _run(
+            [
+                "dt",
+                "backfill",
+                "--root",
+                str(tmp_path),
+                "--title",
+                "Past decision",
+                "--stage",
+                "training",
+                "--type",
+                "generic",
+                "--owner",
+                "ahmet",
+                "--original-decision-date",
+                "unknown",
+                "--evidence",
+                ref,
+                "--confidence",
+                "medium",
+            ],
+            tmp_path,
+        )
+
+        assert result.returncode == 2
+        assert "git commit evidence must be git:commit:<7-40 hex chars>" in result.stdout
+    assert not list(decisions.glob("DR-*.md"))
+
+
+def test_backfill_accepts_url_evidence(tmp_path: Path):
+    decisions = tmp_path / "decisions"
+    decisions.mkdir()
+
+    result = _run(
+        [
+            "dt",
+            "backfill",
+            "--root",
+            str(tmp_path),
+            "--title",
+            "URL evidence",
+            "--stage",
+            "training",
+            "--type",
+            "generic",
+            "--owner",
+            "ahmet",
+            "--original-decision-date",
+            "unknown",
+            "--evidence",
+            "url:https://example.com/notes",
+            "--confidence",
+            "high",
+            "--context",
+            "Context",
+            "--decision",
+            "Decision",
+            "--rationale",
+            "Rationale",
+            "--alternatives",
+            "Alternative",
+            "--consequences",
+            "Consequence",
+        ],
+        tmp_path,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    front = _read_front_matter(decisions / "DR-0001-url-evidence.md")
+    assert front["links"][0]["ref"] == "url:https://example.com/notes"
+    assert front["links"][0]["rel"] == "supported_by"
+    assert front["links"][0]["artifact_kind"] == "document"
+
+
+def test_backfill_unsupported_evidence_lists_supported_prefixes(tmp_path: Path):
+    decisions = tmp_path / "decisions"
+    decisions.mkdir()
+
+    result = _run(
+        [
+            "dt",
+            "backfill",
+            "--root",
+            str(tmp_path),
+            "--title",
+            "Unsupported evidence",
+            "--stage",
+            "training",
+            "--type",
+            "generic",
+            "--owner",
+            "ahmet",
+            "--original-decision-date",
+            "unknown",
+            "--evidence",
+            "git:ref:main",
+            "--confidence",
+            "medium",
+        ],
+        tmp_path,
+    )
+
+    assert result.returncode == 2
+    assert "Supported prefixes" in result.stdout
+    assert "url:https://" in result.stdout
+
+
 def test_backfill_creates_valid_proposed_record_with_reconstruction(tmp_path: Path):
     decisions = tmp_path / "decisions"
     decisions.mkdir()
@@ -169,7 +311,7 @@ def test_backfill_creates_valid_proposed_record_with_reconstruction(tmp_path: Pa
             "--original-decision-date",
             "2025-03-10",
             "--evidence",
-            "git:commit:abc123,path:docs/model-notes.md,run:offline-eval-1",
+            "git:commit:abc1234,path:docs/model-notes.md,run:offline-eval-1",
             "--confidence",
             "medium",
             "--known-gaps",
@@ -201,7 +343,7 @@ def test_backfill_creates_valid_proposed_record_with_reconstruction(tmp_path: Pa
         "mode": "backfill",
         "original_decision_date": "2025-03-10",
         "evidence_confidence": "medium",
-        "evidence_sources": ["git:commit:abc123", "path:docs/model-notes.md", "run:offline-eval-1"],
+        "evidence_sources": ["git:commit:abc1234", "path:docs/model-notes.md", "run:offline-eval-1"],
         "known_gaps": ["Original meeting notes unavailable", "Alternatives reconstructed later"],
     }
     assert front["links"][:3] == [
@@ -209,7 +351,7 @@ def test_backfill_creates_valid_proposed_record_with_reconstruction(tmp_path: Pa
             "id": "L-0001",
             "rel": "implements",
             "artifact_kind": "code",
-            "ref": "git:commit:abc123",
+            "ref": "git:commit:abc1234",
             "label": "Backfill evidence 1",
             "note": "Historical reconstruction evidence",
         },
@@ -241,7 +383,7 @@ def test_backfill_creates_valid_proposed_record_with_reconstruction(tmp_path: Pa
     index = json.loads((decisions / "index.json").read_text(encoding="utf-8"))
     assert index[0]["reconstruction"]["mode"] == "backfill"
     assert index[0]["reconstruction"]["evidence_sources"] == [
-        "git:commit:abc123",
+        "git:commit:abc1234",
         "path:docs/model-notes.md",
         "run:offline-eval-1",
     ]

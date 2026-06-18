@@ -7,6 +7,10 @@ from typing import Optional
 from dt.models import DiscoverCandidate
 
 
+class GitLogError(RuntimeError):
+    """Raised when discover cannot inspect local Git history."""
+
+
 def _git_repo_root(root: Path) -> Optional[Path]:
     try:
         result = subprocess.run(
@@ -84,10 +88,13 @@ def _git_log_candidates(root: Path, keywords: list[str], since: Optional[str], l
         command.append(f"--since={since}")
     try:
         result = subprocess.run(command, capture_output=True, text=True, timeout=5, check=False)
-    except (FileNotFoundError, subprocess.SubprocessError):
-        return []
+    except FileNotFoundError as exc:
+        raise GitLogError("git executable was not found") from exc
+    except subprocess.SubprocessError as exc:
+        raise GitLogError("git log failed while scanning history") from exc
     if result.returncode != 0:
-        return []
+        detail = result.stderr.strip() or "git log failed"
+        raise GitLogError(detail)
 
     normalized_keywords = [keyword.lower() for keyword in keywords if keyword.strip()]
     candidates: list[DiscoverCandidate] = []

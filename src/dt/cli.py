@@ -57,7 +57,7 @@ def report(root: Optional[Path] = typer.Option(None, "--root", help="Repository 
 @app.command()
 def discover(
     root: Optional[Path] = typer.Option(None, "--root", help="Repository root to scan."),
-    since: Optional[str] = typer.Option(None, "--since", help="Only scan commits after this Git date expression."),
+    since: Optional[str] = typer.Option(None, "--since", help="Only scan commits after this YYYY-MM-DD date."),
     limit: int = typer.Option(20, "--limit", help="Maximum candidate count to print."),
     keywords: str = typer.Option(
         DEFAULT_DISCOVER_KEYWORDS,
@@ -84,7 +84,7 @@ def backfill(
     evidence_refs: Optional[str] = typer.Option(
         None,
         "--evidence",
-        help="Comma-separated evidence refs to preserve and map into links.",
+        help="Comma-separated evidence refs. Supports git:commit:<7-40 hex>, path:, url:https://, GitHub, data, and run refs.",
     ),
     confidence: Optional[str] = typer.Option(None, "--confidence", help="Evidence confidence: low|medium|high."),
     known_gaps: str = typer.Option("", "--known-gaps", help="Semicolon-separated known evidence gaps."),

@@ -403,7 +403,7 @@ dt backfill \
   --type model \
   --owner ahmet \
   --original-decision-date unknown \
-  --evidence "git:commit:abc123,path:docs/model-notes.md" \
+  --evidence "git:commit:abc1234,path:docs/model-notes.md" \
   --confidence medium \
   --known-gaps "Original meeting notes unavailable;Alternatives reconstructed later"
 ```
@@ -416,7 +416,7 @@ reconstruction:
   original_decision_date: "unknown"
   evidence_confidence: "medium"
   evidence_sources:
-    - git:commit:abc123
+    - git:commit:abc1234
   known_gaps:
     - Original meeting notes unavailable
 ```
