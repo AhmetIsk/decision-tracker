@@ -151,6 +151,25 @@ Example use cases:
 - propose a new threshold before evidence exists
 - supersede an older rule with a better-structured decision
 
+## Backfilling Existing Projects
+
+Decision Tracker can also be added to an existing repository after important decisions already happened.
+
+Recommended workflow:
+
+```bash
+dt init
+dt discover --since 2024-01-01
+dt backfill
+dt validate --all
+dt report
+dt build-site
+```
+
+`dt discover` scans local Git commit messages and prints possible decision evidence. It is not automatic decision extraction, and it does not write files.
+
+`dt backfill` guides historical reconstruction and creates a normal `proposed` Decision Record with a `reconstruction` block. Use `reconstruction.known_gaps` when evidence is incomplete. Commit history should be treated as evidence, not proof of the original rationale.
+
 ## Use In Another Repository
 
 In another ML project:
@@ -219,6 +238,7 @@ PYTHONPATH=src python3 -m dt.cli report
 ## Important Documents
 
 - [RUNBOOK.md](RUNBOOK.md): detailed user guide
+- [docs/user-scenarios.md](docs/user-scenarios.md): use cases and Mermaid diagrams
 - [viewer/README.md](viewer/README.md): viewer usage notes
 - [docs/](docs/): supporting notes linked from Decision Records
 - [fixtures/decisions](fixtures/decisions): sample records used by tests

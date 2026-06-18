@@ -36,7 +36,9 @@ Those outputs are deterministic. If the input records do not change, the generat
 
 ## Repository Map
 
-- [`src/dt/cli.py`](src/dt/cli.py): CLI implementation
+- [`src/dt/cli.py`](src/dt/cli.py): thin Typer entrypoint and command option declarations
+- `src/dt/commands.py`: command handlers
+- `src/dt/validation.py`, `src/dt/reporting.py`, `src/dt/templates.py`: core validation, report generation, and template rules
 - [`decisions/`](decisions/): current project Decision Records
 - [`docs/`](docs/): supporting notes referenced by records
 - [`fixtures/decisions`](fixtures/decisions): canonical sample Decision Records
@@ -364,6 +366,63 @@ PYTHONPATH=src python3 -m dt.cli build-site --root .
 
 The command refuses to replace an arbitrary non-empty `--site-dir` unless `--force` is passed. This prevents accidental deletion when a custom output path is mistyped.
 
+### `dt discover`
+
+Scans local Git commit messages for possible historical decision evidence.
+
+Example:
+
+```bash
+dt discover --since 2024-01-01
+```
+
+Useful options:
+
+- `--keywords`: comma-separated search terms
+- `--limit`: maximum number of candidates
+- `--since`: Git date expression passed to `git log`
+
+`discover` is suggestion-only. It does not create Decision Records and should not be treated as automatic decision extraction. Commit messages can identify useful evidence, but they rarely contain complete rationale, alternatives, or stakeholder context.
+
+### `dt backfill`
+
+Guides reconstruction of a past decision and creates a normal `proposed` record.
+
+Example:
+
+```bash
+dt backfill
+```
+
+Non-interactive example:
+
+```bash
+dt backfill \
+  --title "Reconstruct baseline model choice" \
+  --stage training \
+  --type model \
+  --owner ahmet \
+  --original-decision-date unknown \
+  --evidence "git:commit:abc123,path:docs/model-notes.md" \
+  --confidence medium \
+  --known-gaps "Original meeting notes unavailable;Alternatives reconstructed later"
+```
+
+Backfilled records include:
+
+```yaml
+reconstruction:
+  mode: backfill
+  original_decision_date: "unknown"
+  evidence_confidence: "medium"
+  evidence_sources:
+    - git:commit:abc123
+  known_gaps:
+    - Original meeting notes unavailable
+```
+
+Keep backfilled records as `proposed` until a human reviews the reconstructed context, rationale, alternatives, consequences, and any template-specific fields.
+
 ## Typical Workflow
 
 ### Scenario 1: Adding a New Model Decision
@@ -400,7 +459,43 @@ PYTHONPATH=src python3 -m dt.cli validate --id DR-0002
 PYTHONPATH=src python3 -m dt.cli report
 ```
 
-### Scenario 2: Recording an Evaluation Protocol
+### Scenario 2: Backfilling Decisions In An Existing Repository
+
+You install Decision Tracker into a project that already has models, datasets, and evaluation rules.
+
+1. Initialize the project:
+
+```bash
+dt init
+```
+
+2. Discover possible evidence:
+
+```bash
+dt discover --since 2024-01-01
+```
+
+3. Review the printed candidates manually. Treat them as evidence clues, not confirmed decisions.
+
+4. Create a reconstructed draft:
+
+```bash
+dt backfill
+```
+
+5. Edit the generated record. Complete rationale, alternatives, consequences, and template-specific fields.
+
+6. Validate and publish:
+
+```bash
+dt validate --all
+dt report
+dt build-site
+```
+
+Use `reconstruction.known_gaps` to make missing historical context explicit. This is important for auditability: a decision recorded at the time is not the same as a decision reconstructed later.
+
+### Scenario 3: Recording an Evaluation Protocol
 
 You standardize evaluation around a fixed split and metric threshold.
 
@@ -439,7 +534,7 @@ links:
 
 If the record is `accepted` and one of those trace links is missing, validation should fail.
 
-### Scenario 3: Proposing a Change Without Evidence Yet
+### Scenario 4: Proposing a Change Without Evidence Yet
 
 You want to propose a new threshold but do not yet have supporting artifacts.
 
@@ -455,7 +550,7 @@ links: []
 
 That record can still pass validation if the template fields and required sections are present.
 
-### Scenario 4: Replacing an Older Decision
+### Scenario 5: Replacing an Older Decision
 
 You want to supersede `DR-0004`.
 
