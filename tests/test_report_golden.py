@@ -71,7 +71,7 @@ def test_report_is_deterministic_across_runs(tmp_path: Path):
     assert first == second
 
 
-def test_report_cleans_stale_decision_json_outputs(tmp_path: Path):
+def test_report_preserves_user_json_while_rewriting_generated_outputs(tmp_path: Path):
     repo = Path(__file__).resolve().parents[1]
     fixtures_decisions = repo / "fixtures" / "decisions"
 
@@ -83,12 +83,15 @@ def test_report_cleans_stale_decision_json_outputs(tmp_path: Path):
     reports_dir.mkdir()
     for path in fixtures_decisions.glob("*.md"):
         shutil.copy2(path, decisions_dir / path.name)
-    stale_json = decisions_dir / "old.json"
-    stale_json.write_text('{"stale": true}\n', encoding="utf-8")
+    user_json = decisions_dir / "extra.json"
+    user_json.write_text('{"team": "notes"}\n', encoding="utf-8")
+    generated_index = decisions_dir / "index.json"
+    generated_index.write_text('{"stale": true}\n', encoding="utf-8")
 
     run(["dt", "report"], cwd=work)
 
-    assert not stale_json.exists()
+    assert user_json.read_text(encoding="utf-8") == '{"team": "notes"}\n'
+    assert generated_index.read_text(encoding="utf-8") != '{"stale": true}\n'
     assert (decisions_dir / "index.json").exists()
     assert (decisions_dir / "graph.json").exists()
     assert (decisions_dir / "artifacts.json").exists()

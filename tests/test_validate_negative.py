@@ -148,7 +148,7 @@ def test_validate_warns_on_todo_sections_without_failing(tmp_path: Path):
         "links: []\n"
         "---\n"
         "\n"
-        "## Context\nTODO\n\n## Decision\nTODO: decide later\n\n## Rationale\nx\n\n## Alternatives\nx\n\n## Consequences\nx\n",
+        "## Context\nTODO\n\n## Decision\nTODO: decide later\n\n## Rationale\nTODO finalize this section\n\n## Alternatives\nx\n\n## Consequences\nx\n",
         encoding="utf-8",
     )
 
@@ -157,6 +157,7 @@ def test_validate_warns_on_todo_sections_without_failing(tmp_path: Path):
     assert result.returncode == 0
     assert "WARN DR-0001: TODO_SECTION: Section still contains TODO placeholder: ## Context" in result.stdout
     assert "WARN DR-0001: TODO_SECTION: Section still contains TODO placeholder: ## Decision" in result.stdout
+    assert "WARN DR-0001: TODO_SECTION: Section still contains TODO placeholder: ## Rationale" in result.stdout
     assert "decisions/DR-0001-draft.md" in result.stdout
     assert "OK DR-0001" in result.stdout
 

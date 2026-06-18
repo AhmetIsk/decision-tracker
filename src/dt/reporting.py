@@ -26,8 +26,10 @@ def _record_file_suffix(record_path: Path, root: Path) -> str:
 
 
 def _clean_stale_outputs(root: Path) -> None:
-    for path in (root / "decisions").glob("*.json"):
-        path.unlink()
+    for name in ("index.json", "graph.json", "artifacts.json"):
+        path = root / "decisions" / name
+        if path.exists():
+            path.unlink()
     reports_dir = root / "reports"
     for name in ("metrics.csv", "report.md"):
         path = reports_dir / name

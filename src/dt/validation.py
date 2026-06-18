@@ -84,7 +84,7 @@ def _todo_section_warnings(headings: dict[str, str]) -> list[ValidationMessage]:
     warnings: list[ValidationMessage] = []
     for heading in REQUIRED_HEADINGS:
         body = headings.get(heading, "").strip()
-        if body.upper() == "TODO" or body.upper().startswith("TODO:"):
+        if re.match(r"^TODO\b", body, flags=re.IGNORECASE):
             warnings.append(ValidationMessage("TODO_SECTION", f"Section still contains TODO placeholder: ## {heading}"))
     return warnings
 
