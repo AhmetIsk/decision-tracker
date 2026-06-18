@@ -80,6 +80,15 @@ def _stakeholder_duplicate_warnings(values: Any) -> list[ValidationMessage]:
     return warnings
 
 
+def _todo_section_warnings(headings: dict[str, str]) -> list[ValidationMessage]:
+    warnings: list[ValidationMessage] = []
+    for heading in REQUIRED_HEADINGS:
+        body = headings.get(heading, "").strip()
+        if body.upper() == "TODO" or body.upper().startswith("TODO:"):
+            warnings.append(ValidationMessage("TODO_SECTION", f"Section still contains TODO placeholder: ## {heading}"))
+    return warnings
+
+
 def _reconstruction_validation_errors(doc: dict[str, Any]) -> list[ValidationMessage]:
     if "reconstruction" not in doc:
         return []
@@ -361,6 +370,7 @@ def _validation_messages(
         alternatives = record.headings.get("Alternatives", "")
         if not alternatives.strip():
             errors.append(ValidationMessage("SECTION_EMPTY", "Section is empty: ## Alternatives"))
+        warnings.extend(_todo_section_warnings(record.headings))
 
     errors.extend(_template_validation_errors(doc))
     errors.extend(_reconstruction_validation_errors(doc))

@@ -71,6 +71,29 @@ def test_report_is_deterministic_across_runs(tmp_path: Path):
     assert first == second
 
 
+def test_report_cleans_stale_decision_json_outputs(tmp_path: Path):
+    repo = Path(__file__).resolve().parents[1]
+    fixtures_decisions = repo / "fixtures" / "decisions"
+
+    work = tmp_path / "work"
+    work.mkdir()
+    decisions_dir = work / "decisions"
+    reports_dir = work / "reports"
+    decisions_dir.mkdir()
+    reports_dir.mkdir()
+    for path in fixtures_decisions.glob("*.md"):
+        shutil.copy2(path, decisions_dir / path.name)
+    stale_json = decisions_dir / "old.json"
+    stale_json.write_text('{"stale": true}\n', encoding="utf-8")
+
+    run(["dt", "report"], cwd=work)
+
+    assert not stale_json.exists()
+    assert (decisions_dir / "index.json").exists()
+    assert (decisions_dir / "graph.json").exists()
+    assert (decisions_dir / "artifacts.json").exists()
+
+
 def test_report_missing_decisions_dir_is_filesystem_error(tmp_path: Path):
     work = tmp_path / "work"
     work.mkdir()

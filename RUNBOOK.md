@@ -324,8 +324,9 @@ Possible output:
 
 ```text
 OK DR-0003
-FAIL DR-0007: TEMPLATE_FIELD_MISSING: model_spec.primary_metric must be a non-empty string
-WARN DR-0008: DECISION_REF_NON_SUPERSEDES: links[1] references a decision with rel=supported_by
+FAIL DR-0007: TEMPLATE_FIELD_MISSING: model_spec.primary_metric must be a non-empty string [file: decisions/DR-0007-example.md]
+WARN DR-0008: DECISION_REF_NON_SUPERSEDES: links[1] references a decision with rel=supported_by [file: decisions/DR-0008-example.md]
+WARN DR-0009: TODO_SECTION: Section still contains TODO placeholder: ## Context [file: decisions/DR-0009-draft.md]
 ```
 
 Exit codes:
@@ -352,7 +353,7 @@ Writes:
 - `reports/metrics.csv`
 - `reports/report.md`
 
-If validation errors are found, `dt report` prints the failures and exits before writing generated outputs. This prevents invalid records from producing misleading metrics.
+`dt report` removes stale generated JSON exports before writing the canonical `index.json`, `graph.json`, and `artifacts.json` files. If validation errors are found, it prints the failures and exits before writing new generated outputs. This prevents invalid or stale records from producing misleading metrics.
 
 ### `dt build-site`
 
@@ -653,7 +654,7 @@ Cause:
 Example:
 
 ```text
-FAIL DR-0007: TEMPLATE_FIELD_MISSING: model_spec.primary_metric must be a non-empty string
+FAIL DR-0007: TEMPLATE_FIELD_MISSING: model_spec.primary_metric must be a non-empty string [file: decisions/DR-0007-example.md]
 ```
 
 ### `LINK_INVALID_FORMAT`

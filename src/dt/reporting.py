@@ -17,6 +17,24 @@ from dt.utils import _is_non_empty_section, _is_non_empty_string, _round3, _stab
 from dt.validation import _load_record, _validation_context, _validation_messages, _yaml_valid
 
 
+def _record_file_suffix(record_path: Path, root: Path) -> str:
+    try:
+        display = record_path.relative_to(root).as_posix()
+    except ValueError:
+        display = record_path.as_posix()
+    return f" [file: {display}]"
+
+
+def _clean_stale_outputs(root: Path) -> None:
+    for path in (root / "decisions").glob("*.json"):
+        path.unlink()
+    reports_dir = root / "reports"
+    for name in ("metrics.csv", "report.md"):
+        path = reports_dir / name
+        if path.exists():
+            path.unlink()
+
+
 def _build_decision(path: Path) -> DecisionComputed:
     text = path.read_text(encoding="utf-8")
     yaml_text, markdown = _extract_front_matter(text)
@@ -137,6 +155,7 @@ def generate_report(root: Path) -> None:
         typer.echo(f"FAIL DECISIONS_DIR_MISSING: No decisions/ directory found at {root}. Run `dt init` first.")
         raise typer.Exit(code=2)
 
+    _clean_stale_outputs(root)
     files = sorted(decisions_dir.glob("*.md"), key=lambda path: path.name)
     loaded_records = [_load_record(path) for path in files]
     context = _validation_context(loaded_records)
@@ -148,9 +167,9 @@ def generate_report(root: Path) -> None:
         record_id = record.yaml_id or "UNKNOWN"
         for error in errors:
             has_validation_failures = True
-            typer.echo(f"FAIL {record_id}: {error.code}: {error.message}")
+            typer.echo(f"FAIL {record_id}: {error.code}: {error.message}{_record_file_suffix(record.path, root)}")
         for warning in warnings:
-            typer.echo(f"WARN {record_id}: {warning.code}: {warning.message}")
+            typer.echo(f"WARN {record_id}: {warning.code}: {warning.message}{_record_file_suffix(record.path, root)}")
     if has_validation_failures:
         raise typer.Exit(code=3)
 

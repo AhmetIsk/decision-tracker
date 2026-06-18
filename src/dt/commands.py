@@ -41,6 +41,14 @@ def report_command(root: Optional[Path]) -> None:
     generate_report(_resolve_root(root))
 
 
+def _record_file_suffix(record_path: Path, root: Path) -> str:
+    try:
+        display = record_path.relative_to(root).as_posix()
+    except ValueError:
+        display = record_path.as_posix()
+    return f" [file: {display}]"
+
+
 def discover_command(root: Optional[Path], since: Optional[str], limit: int, keywords: str) -> None:
     if limit < 1:
         raise typer.BadParameter("limit must be at least 1")
@@ -192,9 +200,9 @@ def validate_command(all_records: bool, decision_id: Optional[str], root: Option
         if errors:
             has_failures = True
             for error in errors:
-                typer.echo(f"FAIL {record_id}: {error.code}: {error.message}")
+                typer.echo(f"FAIL {record_id}: {error.code}: {error.message}{_record_file_suffix(record.path, resolved_root)}")
         for warning in warnings:
-            typer.echo(f"WARN {record_id}: {warning.code}: {warning.message}")
+            typer.echo(f"WARN {record_id}: {warning.code}: {warning.message}{_record_file_suffix(record.path, resolved_root)}")
         if not errors:
             typer.echo(f"OK {record_id}")
 

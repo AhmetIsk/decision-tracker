@@ -125,6 +125,40 @@ def test_validate_rejects_duplicate_yaml_ids(tmp_path: Path):
     result = subprocess.run(["dt", "validate", "--all"], cwd=work, capture_output=True, text=True)
     assert result.returncode == 3
     assert result.stdout.count("ID_DUPLICATE") == 2
+    assert "decisions/DR-0001-a.md" in result.stdout
+    assert "decisions/DR-0002-b.md" in result.stdout
+
+
+def test_validate_warns_on_todo_sections_without_failing(tmp_path: Path):
+    work = tmp_path / "work"
+    work.mkdir()
+    decisions_dir = work / "decisions"
+    decisions_dir.mkdir()
+    (decisions_dir / "DR-0001-draft.md").write_text(
+        "---\n"
+        "id: DR-0001\n"
+        "title: Draft decision\n"
+        "status: proposed\n"
+        "type: generic\n"
+        "stage: data\n"
+        "date: '2026-03-14'\n"
+        "owner: ahmet\n"
+        "stakeholders: []\n"
+        "template_version: '1.0'\n"
+        "links: []\n"
+        "---\n"
+        "\n"
+        "## Context\nTODO\n\n## Decision\nTODO: decide later\n\n## Rationale\nx\n\n## Alternatives\nx\n\n## Consequences\nx\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(["dt", "validate", "--all"], cwd=work, capture_output=True, text=True)
+
+    assert result.returncode == 0
+    assert "WARN DR-0001: TODO_SECTION: Section still contains TODO placeholder: ## Context" in result.stdout
+    assert "WARN DR-0001: TODO_SECTION: Section still contains TODO placeholder: ## Decision" in result.stdout
+    assert "decisions/DR-0001-draft.md" in result.stdout
+    assert "OK DR-0001" in result.stdout
 
 
 def test_validate_requires_model_spec_fields(tmp_path: Path):
