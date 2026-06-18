@@ -45,7 +45,7 @@ pipx install decision-tracker
 
 The installable package is named `decision-tracker`; the CLI command is `dt`.
 
-The scaffolded GitHub Pages workflow created by `dt init` uses `pip install decision-tracker`, so it is intended for the PyPI-published package path. Before the PyPI release, use the GitHub install command locally or edit the scaffolded workflow install step.
+The scaffolded GitHub Pages workflow created by `dt init` currently installs from the pinned GitHub release tag `v0.1.0`. After the package is published to PyPI, that workflow can be simplified to `pip install decision-tracker`.
 
 If `dt` is installed:
 

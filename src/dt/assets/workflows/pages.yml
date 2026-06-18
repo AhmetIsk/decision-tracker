@@ -39,7 +39,9 @@ jobs:
           python-version: "3.11"
 
       - name: Install Decision Tracker
-        run: python -m pip install decision-tracker
+        # After the package is published to PyPI, this can become:
+        # python -m pip install decision-tracker
+        run: python -m pip install "decision-tracker @ git+https://github.com/AhmetIsk/decision-tracker.git@v0.1.0"
 
       - name: Validate decisions
         run: dt validate --all

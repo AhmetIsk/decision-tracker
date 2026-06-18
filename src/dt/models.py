@@ -15,6 +15,8 @@ class ValidationMessage:
 class ScaffoldChanges:
     created: list[str] = field(default_factory=list)
     replaced: list[str] = field(default_factory=list)
+    updated: list[str] = field(default_factory=list)
+    unchanged: list[str] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
 
 
