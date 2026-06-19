@@ -33,7 +33,7 @@ def _stable_stakeholders(values: Any) -> list[str]:
         key = clean.lower()
         if key not in dedup:
             dedup[key] = clean
-    return sorted(dedup.values(), key=lambda v: v.lower(), reverse=True)
+    return sorted(dedup.values(), key=lambda v: v.lower())
 
 
 def _parse_stakeholders_csv(raw: str) -> list[str]:
