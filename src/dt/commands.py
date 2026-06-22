@@ -229,6 +229,7 @@ def _list_record_row(record) -> dict[str, object]:
         "owner": str(doc.get("owner") or ""),
         "title": str(doc.get("title") or ""),
         "parse_error": False,
+        "parse_error_message": "",
     }
 
 
@@ -250,19 +251,23 @@ def list_command(
 
     resolved_root = _resolve_root(root)
     rows = [_list_record_row(record) for record in _load_records_for_command(resolved_root)]
+    has_records = bool(rows)
     if status is not None:
-        rows = [row for row in rows if row["status"] == status]
+        rows = [row for row in rows if row["parse_error"] or row["status"] == status]
     if decision_type is not None:
-        rows = [row for row in rows if row["type"] == decision_type]
+        rows = [row for row in rows if row["parse_error"] or row["type"] == decision_type]
     if stage is not None:
-        rows = [row for row in rows if row["stage"] == stage]
+        rows = [row for row in rows if row["parse_error"] or row["stage"] == stage]
 
     if output_format == "json":
         typer.echo(json.dumps(rows, indent=2, sort_keys=True))
         return
 
     if not rows:
-        typer.echo("No decisions found. Run `dt new ...` to create one.")
+        if has_records:
+            typer.echo("No decisions match the given filters.")
+        else:
+            typer.echo("No decisions found. Run `dt new ...` to create one.")
         return
 
     headers = ["ID", "STATUS", "TYPE", "STAGE", "DATE", "OWNER", "TITLE"]

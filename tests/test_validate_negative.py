@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from dt.git import _git_commit_exists
 from dt.validation import _yaml_valid
 
 
@@ -276,6 +277,8 @@ def test_validate_warns_on_non_portable_path_refs(tmp_path: Path):
 
     assert result.returncode == 0
     assert result.stdout.count("PATH_REF_NOT_PORTABLE") == 2
+    assert "uses an absolute or parent-relative path" in result.stdout
+    assert "traceability across machines" in result.stdout
     assert "path:/Users/me/private-notes.md" in result.stdout
     assert "path:../outside.md" in result.stdout
     assert "PATH_REF_NOT_FOUND" not in result.stdout
@@ -991,6 +994,15 @@ def test_validate_skips_git_commit_check_outside_git_repo(tmp_path: Path):
     assert result.returncode == 0
     assert "GIT_COMMIT_NOT_FOUND" not in result.stdout
     assert "OK DR-0001" in result.stdout
+
+
+def test_git_commit_exists_returns_false_when_git_execution_fails(monkeypatch, tmp_path: Path):
+    def raise_file_not_found(*_args, **_kwargs):
+        raise FileNotFoundError("git")
+
+    monkeypatch.setattr("dt.git.subprocess.run", raise_file_not_found)
+
+    assert _git_commit_exists(tmp_path, "deadbeef") is False
 
 
 def test_validate_missing_decisions_dir_is_filesystem_error(tmp_path: Path):

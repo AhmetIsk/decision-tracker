@@ -64,7 +64,7 @@ def _git_commit_exists(root: Path, sha: str) -> bool:
             check=False,
         )
     except (FileNotFoundError, subprocess.SubprocessError):
-        return True
+        return False
     return result.returncode == 0
 
 

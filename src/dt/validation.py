@@ -240,7 +240,7 @@ def _path_ref_warnings(valid_links: list[dict[str, Any]], root: Optional[Path]) 
             warnings.append(
                 ValidationMessage(
                     "PATH_REF_NOT_PORTABLE",
-                    f"links[{index}] should use a project-local relative path: {ref}",
+                    f"links[{index}] uses an absolute or parent-relative path; use a project-local relative path for traceability across machines: {ref}",
                 )
             )
             continue

@@ -44,6 +44,7 @@ def test_list_filters_and_outputs_json(tmp_path: Path):
     assert rows[0]["type"] == "model"
     assert rows[0]["stage"] == "training"
     assert rows[0]["parse_error"] is False
+    assert rows[0]["parse_error_message"] == ""
 
 
 def test_list_marks_parse_error_records_in_table(tmp_path: Path):
@@ -101,6 +102,49 @@ def test_list_marks_parse_error_records_in_json(tmp_path: Path):
     ]
 
 
+def test_list_keeps_parse_error_records_under_filters(tmp_path: Path):
+    work = tmp_path / "work"
+    work.mkdir()
+    decisions = work / "decisions"
+    decisions.mkdir()
+    (decisions / "DR-0001-good.md").write_text(
+        "---\n"
+        "id: DR-0001\n"
+        "title: Good\n"
+        "status: proposed\n"
+        "type: generic\n"
+        "stage: training\n"
+        "date: '2026-03-14'\n"
+        "owner: ahmet\n"
+        "stakeholders: []\n"
+        "template_version: '1.0'\n"
+        "links: []\n"
+        "---\n"
+        "\n"
+        "## Context\nx\n\n## Decision\nx\n\n## Rationale\nx\n\n## Alternatives\nx\n\n## Consequences\nx\n",
+        encoding="utf-8",
+    )
+    (decisions / "DR-0002-broken.md").write_text("---\nid: DR-0002\nlinks: [\n---\n", encoding="utf-8")
+
+    table = subprocess.run(["dt", "list", "--status", "accepted"], cwd=work, capture_output=True, text=True)
+    as_json = subprocess.run(
+        ["dt", "list", "--status", "accepted", "--format", "json"],
+        cwd=work,
+        capture_output=True,
+        text=True,
+    )
+
+    assert table.returncode == 0, table.stdout + table.stderr
+    assert "DR-0001" not in table.stdout
+    assert "DR-0002" in table.stdout
+    assert "(parse error)" in table.stdout
+
+    assert as_json.returncode == 0, as_json.stdout + as_json.stderr
+    rows = json.loads(as_json.stdout)
+    assert [row["id"] for row in rows] == ["DR-0002"]
+    assert rows[0]["parse_error"] is True
+
+
 def test_list_empty_table_prints_friendly_message(tmp_path: Path):
     work = tmp_path / "work"
     work.mkdir()
@@ -118,7 +162,7 @@ def test_list_empty_filtered_table_prints_friendly_message(tmp_path: Path):
     result = subprocess.run(["dt", "list", "--status", "rejected"], cwd=work, capture_output=True, text=True)
 
     assert result.returncode == 0, result.stdout + result.stderr
-    assert result.stdout.strip() == "No decisions found. Run `dt new ...` to create one."
+    assert result.stdout.strip() == "No decisions match the given filters."
 
 
 def test_list_empty_json_outputs_empty_array(tmp_path: Path):
