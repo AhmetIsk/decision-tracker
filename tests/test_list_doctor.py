@@ -43,6 +43,93 @@ def test_list_filters_and_outputs_json(tmp_path: Path):
     assert [row["id"] for row in rows] == ["DR-0002"]
     assert rows[0]["type"] == "model"
     assert rows[0]["stage"] == "training"
+    assert rows[0]["parse_error"] is False
+
+
+def test_list_marks_parse_error_records_in_table(tmp_path: Path):
+    work = tmp_path / "work"
+    work.mkdir()
+    decisions = work / "decisions"
+    decisions.mkdir()
+    (decisions / "DR-0001-broken.md").write_text(
+        "---\n"
+        "id: DR-0001\n"
+        "title: Broken\n"
+        "links: [\n"
+        "---\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(["dt", "list"], cwd=work, capture_output=True, text=True)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "DR-0001" in result.stdout
+    assert "(parse error)" in result.stdout
+    assert "Invalid YAML front matter" in result.stdout
+
+
+def test_list_marks_parse_error_records_in_json(tmp_path: Path):
+    work = tmp_path / "work"
+    work.mkdir()
+    decisions = work / "decisions"
+    decisions.mkdir()
+    (decisions / "DR-0001-broken.md").write_text(
+        "---\n"
+        "id: DR-0001\n"
+        "title: Broken\n"
+        "links: [\n"
+        "---\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(["dt", "list", "--format", "json"], cwd=work, capture_output=True, text=True)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    rows = json.loads(result.stdout)
+    assert rows == [
+        {
+            "date": "",
+            "id": "DR-0001",
+            "owner": "",
+            "parse_error": True,
+            "parse_error_message": "Invalid YAML front matter",
+            "stage": "",
+            "status": "(parse error)",
+            "title": "Invalid YAML front matter",
+            "type": "",
+        }
+    ]
+
+
+def test_list_empty_table_prints_friendly_message(tmp_path: Path):
+    work = tmp_path / "work"
+    work.mkdir()
+    (work / "decisions").mkdir()
+
+    result = subprocess.run(["dt", "list"], cwd=work, capture_output=True, text=True)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.strip() == "No decisions found. Run `dt new ...` to create one."
+
+
+def test_list_empty_filtered_table_prints_friendly_message(tmp_path: Path):
+    work = _prepare_workdir(tmp_path)
+
+    result = subprocess.run(["dt", "list", "--status", "rejected"], cwd=work, capture_output=True, text=True)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert result.stdout.strip() == "No decisions found. Run `dt new ...` to create one."
+
+
+def test_list_empty_json_outputs_empty_array(tmp_path: Path):
+    work = tmp_path / "work"
+    work.mkdir()
+    (work / "decisions").mkdir()
+
+    result = subprocess.run(["dt", "list", "--format", "json"], cwd=work, capture_output=True, text=True)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert json.loads(result.stdout) == []
 
 
 def test_list_missing_decisions_dir_is_filesystem_error(tmp_path: Path):

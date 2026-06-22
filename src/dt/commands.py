@@ -194,6 +194,7 @@ def backfill_command(
 
     typer.echo(f"Created {out_path.relative_to(resolved_root).as_posix()}")
     typer.echo("Review this proposed backfill record before changing status to accepted.")
+    typer.echo("Validation may show TODO and checklist warnings until reconstruction is complete.")
 
 
 def _load_records_for_command(root: Path):
@@ -204,7 +205,20 @@ def _load_records_for_command(root: Path):
     return [_load_record(path) for path in sorted(decisions_dir.glob("DR-*.md"), key=lambda path: path.name)]
 
 
-def _list_record_row(record) -> dict[str, str]:
+def _list_record_row(record) -> dict[str, object]:
+    if record.parse_errors:
+        message = record.parse_errors[0].message if record.parse_errors else "(parse error)"
+        return {
+            "id": str(record.yaml_id or ""),
+            "status": "(parse error)",
+            "type": "",
+            "stage": "",
+            "date": "",
+            "owner": "",
+            "title": message or "(parse error)",
+            "parse_error": True,
+            "parse_error_message": message or "(parse error)",
+        }
     doc = record.doc if isinstance(record.doc, dict) else {}
     return {
         "id": str(doc.get("id") or record.yaml_id or ""),
@@ -214,6 +228,7 @@ def _list_record_row(record) -> dict[str, str]:
         "date": str(doc.get("date") or ""),
         "owner": str(doc.get("owner") or ""),
         "title": str(doc.get("title") or ""),
+        "parse_error": False,
     }
 
 
@@ -246,16 +261,20 @@ def list_command(
         typer.echo(json.dumps(rows, indent=2, sort_keys=True))
         return
 
+    if not rows:
+        typer.echo("No decisions found. Run `dt new ...` to create one.")
+        return
+
     headers = ["ID", "STATUS", "TYPE", "STAGE", "DATE", "OWNER", "TITLE"]
     keys = ["id", "status", "type", "stage", "date", "owner", "title"]
     widths = {
-        key: max(len(header), *(len(row[key]) for row in rows)) if rows else len(header)
+        key: max(len(header), *(len(str(row[key])) for row in rows))
         for key, header in zip(keys, headers)
     }
     typer.echo("  ".join(header.ljust(widths[key]) for key, header in zip(keys, headers)))
     typer.echo("  ".join("-" * widths[key] for key in keys))
     for row in rows:
-        typer.echo("  ".join(row[key].ljust(widths[key]) for key in keys))
+        typer.echo("  ".join(str(row[key]).ljust(widths[key]) for key in keys))
 
 
 def _git_ignored(root: Path, path: str) -> bool:

@@ -452,7 +452,7 @@ reconstruction:
     - Original meeting notes unavailable
 ```
 
-Keep backfilled records as `proposed` until a human reviews the reconstructed context, rationale, alternatives, consequences, and any template-specific fields.
+Keep backfilled records as `proposed` until a human reviews the reconstructed context, rationale, alternatives, consequences, and any template-specific fields. Use normal validation during reconstruction, then use `dt validate --strict` once TODO and checklist warnings are resolved or intentionally accepted by review.
 
 ## Typical Workflow
 
@@ -527,6 +527,8 @@ dt build-site
 Use `reconstruction.known_gaps` to make missing historical context explicit. This is important for auditability: a decision recorded at the time is not the same as a decision reconstructed later.
 
 Backfilled records include a `## Backfill Review Checklist` section. Leave unchecked items visible while reconstruction is incomplete; validation emits `BACKFILL_CHECKLIST_INCOMPLETE` as a warning. Once a reviewer confirms the reconstructed date, confidence, rationale, alternatives, consequences, gaps, and status, mark the checklist items as checked.
+
+After that review step, run `dt validate --strict` so any remaining advisory warnings are treated as blockers before publication.
 
 Decision Records may also include optional review metadata:
 

@@ -240,6 +240,48 @@ def test_validate_warns_on_missing_local_path_refs(tmp_path: Path):
     assert strict.returncode == 3
 
 
+def test_validate_warns_on_non_portable_path_refs(tmp_path: Path):
+    work = tmp_path / "work"
+    work.mkdir()
+    decisions_dir = work / "decisions"
+    decisions_dir.mkdir()
+    (decisions_dir / "DR-0001-paths.md").write_text(
+        "---\n"
+        "id: DR-0001\n"
+        "title: Path refs\n"
+        "status: accepted\n"
+        "type: generic\n"
+        "stage: data\n"
+        "date: '2026-03-14'\n"
+        "owner: ahmet\n"
+        "stakeholders: []\n"
+        "template_version: '1.0'\n"
+        "links:\n"
+        "  - id: L-0001\n"
+        "    rel: supported_by\n"
+        "    artifact_kind: document\n"
+        "    ref: path:/Users/me/private-notes.md\n"
+        "  - id: L-0002\n"
+        "    rel: supported_by\n"
+        "    artifact_kind: document\n"
+        "    ref: path:../outside.md\n"
+        "---\n"
+        "\n"
+        "## Context\nx\n\n## Decision\nx\n\n## Rationale\nx\n\n## Alternatives\nx\n\n## Consequences\nx\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(["dt", "validate", "--all"], cwd=work, capture_output=True, text=True)
+    strict = subprocess.run(["dt", "validate", "--all", "--strict"], cwd=work, capture_output=True, text=True)
+
+    assert result.returncode == 0
+    assert result.stdout.count("PATH_REF_NOT_PORTABLE") == 2
+    assert "path:/Users/me/private-notes.md" in result.stdout
+    assert "path:../outside.md" in result.stdout
+    assert "PATH_REF_NOT_FOUND" not in result.stdout
+    assert strict.returncode == 3
+
+
 def test_validate_warns_on_incomplete_backfill_checklist(tmp_path: Path):
     work = tmp_path / "work"
     work.mkdir()
@@ -346,6 +388,79 @@ def test_validate_optional_review_metadata(tmp_path: Path):
 
     assert result.returncode == 0
     assert "OK DR-0001" in result.stdout
+
+
+def test_validate_warns_on_incomplete_review_metadata(tmp_path: Path):
+    work = tmp_path / "work"
+    work.mkdir()
+    decisions_dir = work / "decisions"
+    decisions_dir.mkdir()
+    (decisions_dir / "DR-0001-review.md").write_text(
+        "---\n"
+        "id: DR-0001\n"
+        "title: Review metadata\n"
+        "status: proposed\n"
+        "type: generic\n"
+        "stage: data\n"
+        "date: '2026-03-14'\n"
+        "owner: ahmet\n"
+        "stakeholders: []\n"
+        "template_version: '1.0'\n"
+        "links: []\n"
+        "review:\n"
+        "  status: reviewed\n"
+        "  reviewed_by: []\n"
+        "  reviewed_date: unknown\n"
+        "  notes: Reviewed later\n"
+        "---\n"
+        "\n"
+        "## Context\nx\n\n## Decision\nx\n\n## Rationale\nx\n\n## Alternatives\nx\n\n## Consequences\nx\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(["dt", "validate", "--all"], cwd=work, capture_output=True, text=True)
+    strict = subprocess.run(["dt", "validate", "--all", "--strict"], cwd=work, capture_output=True, text=True)
+
+    assert result.returncode == 0
+    assert result.stdout.count("REVIEW_INCOMPLETE") == 2
+    assert "at least one reviewer" in result.stdout
+    assert "reviewed_date" in result.stdout
+    assert strict.returncode == 3
+
+
+def test_validate_warns_on_changes_requested_without_notes(tmp_path: Path):
+    work = tmp_path / "work"
+    work.mkdir()
+    decisions_dir = work / "decisions"
+    decisions_dir.mkdir()
+    (decisions_dir / "DR-0001-review.md").write_text(
+        "---\n"
+        "id: DR-0001\n"
+        "title: Review metadata\n"
+        "status: proposed\n"
+        "type: generic\n"
+        "stage: data\n"
+        "date: '2026-03-14'\n"
+        "owner: ahmet\n"
+        "stakeholders: []\n"
+        "template_version: '1.0'\n"
+        "links: []\n"
+        "review:\n"
+        "  status: changes_requested\n"
+        "  reviewed_by: [advisor]\n"
+        "  reviewed_date: '2026-03-15'\n"
+        "  notes: '   '\n"
+        "---\n"
+        "\n"
+        "## Context\nx\n\n## Decision\nx\n\n## Rationale\nx\n\n## Alternatives\nx\n\n## Consequences\nx\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(["dt", "validate", "--all"], cwd=work, capture_output=True, text=True)
+
+    assert result.returncode == 0
+    assert "REVIEW_INCOMPLETE" in result.stdout
+    assert "should include notes" in result.stdout
 
 
 def test_validate_rejects_invalid_review_metadata(tmp_path: Path):

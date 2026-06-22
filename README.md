@@ -188,6 +188,8 @@ dt build-site
 
 Backfilled records also include a review checklist. Unchecked checklist items produce a warning so reviewers can see what still needs confirmation.
 
+Use normal validation while reconstruction is in progress; use `dt validate --strict` after TODOs and checklist items are completed or intentionally accepted by review.
+
 Decision Records may optionally include review metadata:
 
 ```yaml

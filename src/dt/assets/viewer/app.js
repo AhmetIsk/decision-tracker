@@ -490,23 +490,40 @@ function renderGraph() {
   }
 
   const activeNodeId = state.selectedId ? `decision:${state.selectedId}` : "";
-  const activeTargets = new Set(
-    state.graph.edges
-      .filter((edge) => edge.source === activeNodeId)
-      .filter((edge) => !state.edgeRelFilter || edge.rel === state.edgeRelFilter)
-      .map((edge) => edge.target),
-  );
-  const visibleIds = activeGraphIds(activeNodeId, activeTargets);
+
+  function edgePassesControls(edge) {
+    if (state.edgeRelFilter && edge.rel !== state.edgeRelFilter) {
+      return false;
+    }
+    if (!state.showArtifacts && String(edge.target).startsWith("artifact:")) {
+      return false;
+    }
+    return positions.has(edge.source) && positions.has(edge.target);
+  }
+
+  const visibleEdges = state.graph.edges.filter(edgePassesControls);
+  const filterConnectedIds = new Set();
+  visibleEdges.forEach((edge) => {
+    filterConnectedIds.add(edge.source);
+    filterConnectedIds.add(edge.target);
+  });
+
+  const activeTargets = new Set(visibleEdges.filter((edge) => edge.source === activeNodeId).map((edge) => edge.target));
+  const focusedIds = activeGraphIds(activeNodeId, activeTargets);
+  let visibleIds = focusedIds;
+  if (state.edgeRelFilter) {
+    visibleIds = new Set(filterConnectedIds);
+    if (focusedIds) {
+      visibleIds = new Set([...focusedIds].filter((id) => filterConnectedIds.has(id)));
+      if (activeNodeId) {
+        visibleIds.add(activeNodeId);
+      }
+    }
+  }
 
   const edgeLabelCounts = new Map();
-  const edges = state.graph.edges
+  const edges = visibleEdges
     .map((edge, index) => {
-      if (state.edgeRelFilter && edge.rel !== state.edgeRelFilter) {
-        return "";
-      }
-      if (!state.showArtifacts && String(edge.target).startsWith("artifact:")) {
-        return "";
-      }
       if (visibleIds && (!visibleIds.has(edge.source) || !visibleIds.has(edge.target))) {
         return "";
       }
@@ -570,7 +587,9 @@ function renderGraph() {
     </svg>
   `;
   els.graphFocus.textContent = state.selectedId
-    ? `${state.focusSelected ? "Showing only" : "Focused on"} decision:${state.selectedId}${state.edgeRelFilter ? ` · ${state.edgeRelFilter}` : ""}`
+    ? state.edgeRelFilter && state.focusSelected && activeTargets.size === 0
+      ? `No ${state.edgeRelFilter} trace links for decision:${state.selectedId}`
+      : `${state.focusSelected ? "Showing only" : "Focused on"} decision:${state.selectedId}${state.edgeRelFilter ? ` · ${state.edgeRelFilter}` : ""}`
     : `${state.edgeRelFilter ? state.edgeRelFilter : "All"} decision and artifact links`;
 }
 

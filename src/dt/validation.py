@@ -168,6 +168,49 @@ def _review_validation_errors(doc: dict[str, Any]) -> list[ValidationMessage]:
     return errors
 
 
+def _review_validation_warnings(doc: dict[str, Any]) -> list[ValidationMessage]:
+    if "review" not in doc:
+        return []
+    review = doc.get("review")
+    if not isinstance(review, dict):
+        return []
+
+    status = review.get("status")
+    if status not in {"pending", "reviewed", "changes_requested"}:
+        return []
+
+    warnings: list[ValidationMessage] = []
+    reviewed_by = review.get("reviewed_by")
+    if status != "pending" and isinstance(reviewed_by, list):
+        reviewers = [item.strip() for item in reviewed_by if isinstance(item, str) and item.strip()]
+        if not reviewers:
+            warnings.append(
+                ValidationMessage(
+                    "REVIEW_INCOMPLETE",
+                    f"review.status {status} should include at least one reviewer",
+                )
+            )
+
+    reviewed_date = review.get("reviewed_date")
+    if status != "pending" and reviewed_date == "unknown":
+        warnings.append(
+            ValidationMessage(
+                "REVIEW_INCOMPLETE",
+                f"review.status {status} should include a reviewed_date",
+            )
+        )
+
+    notes = review.get("notes", "")
+    if status == "changes_requested" and isinstance(notes, str) and not notes.strip():
+        warnings.append(
+            ValidationMessage(
+                "REVIEW_INCOMPLETE",
+                "review.status changes_requested should include notes",
+            )
+        )
+    return warnings
+
+
 def _backfill_checklist_warnings(doc: dict[str, Any], headings: dict[str, str]) -> list[ValidationMessage]:
     reconstruction = doc.get("reconstruction")
     if not isinstance(reconstruction, dict) or reconstruction.get("mode") != "backfill":
@@ -194,6 +237,12 @@ def _path_ref_warnings(valid_links: list[dict[str, Any]], root: Optional[Path]) 
         relative = ref.split("path:", 1)[1]
         path = Path(relative)
         if path.is_absolute() or ".." in path.parts:
+            warnings.append(
+                ValidationMessage(
+                    "PATH_REF_NOT_PORTABLE",
+                    f"links[{index}] should use a project-local relative path: {ref}",
+                )
+            )
             continue
         if not (root / path).exists():
             warnings.append(
@@ -433,6 +482,7 @@ def _validation_messages(
     errors.extend(_template_validation_errors(doc))
     errors.extend(_reconstruction_validation_errors(doc))
     errors.extend(_review_validation_errors(doc))
+    warnings.extend(_review_validation_warnings(doc))
     warnings.extend(_backfill_checklist_warnings(doc, record.headings))
 
     links = doc.get("links", []) if isinstance(doc.get("links"), list) else []

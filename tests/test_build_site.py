@@ -63,6 +63,8 @@ def test_build_site_creates_clean_static_artifact(tmp_path: Path):
     app_js = (site / "app.js").read_text(encoding="utf-8")
     assert "stage-lane" in app_js
     assert "review-panel" in app_js
+    assert "filterConnectedIds" in app_js
+    assert "No ${state.edgeRelFilter} trace links" in app_js
     assert "OK DR-0001" in (data / "validation.txt").read_text(encoding="utf-8")
 
     meta = json.loads((data / "site-meta.json").read_text(encoding="utf-8"))
