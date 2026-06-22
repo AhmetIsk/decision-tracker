@@ -1,0 +1,79 @@
+import json
+import shutil
+import subprocess
+from pathlib import Path
+
+
+def _prepare_workdir(tmp_path: Path) -> Path:
+    repo = Path(__file__).resolve().parents[1]
+    fixtures = repo / "fixtures" / "decisions"
+    work = tmp_path / "work"
+    work.mkdir()
+    decisions = work / "decisions"
+    decisions.mkdir()
+    for path in fixtures.glob("*.md"):
+        shutil.copy2(path, decisions / path.name)
+    return work
+
+
+def test_list_prints_table_in_id_order(tmp_path: Path):
+    work = _prepare_workdir(tmp_path)
+
+    result = subprocess.run(["dt", "list"], cwd=work, capture_output=True, text=True)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    lines = result.stdout.splitlines()
+    assert lines[0].startswith("ID")
+    assert "DR-0001" in lines[2]
+    assert "DR-0006" in lines[-1]
+
+
+def test_list_filters_and_outputs_json(tmp_path: Path):
+    work = _prepare_workdir(tmp_path)
+
+    result = subprocess.run(
+        ["dt", "list", "--type", "model", "--stage", "training", "--format", "json"],
+        cwd=work,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    rows = json.loads(result.stdout)
+    assert [row["id"] for row in rows] == ["DR-0002"]
+    assert rows[0]["type"] == "model"
+    assert rows[0]["stage"] == "training"
+
+
+def test_list_missing_decisions_dir_is_filesystem_error(tmp_path: Path):
+    result = subprocess.run(["dt", "list"], cwd=tmp_path, capture_output=True, text=True)
+
+    assert result.returncode == 2
+    assert "FAIL DECISIONS_DIR_MISSING" in result.stdout
+
+
+def test_doctor_reports_missing_decisions_dir(tmp_path: Path):
+    result = subprocess.run(["dt", "doctor", "--root", str(tmp_path)], cwd=tmp_path, capture_output=True, text=True)
+
+    assert result.returncode == 2
+    assert "FAIL decisions_dir" in result.stdout
+
+
+def test_doctor_json_is_parseable_for_initialized_project(tmp_path: Path):
+    work = tmp_path / "repo"
+    work.mkdir()
+    init = subprocess.run(["dt", "init", "--root", str(work)], cwd=tmp_path, capture_output=True, text=True)
+    assert init.returncode == 0, init.stdout + init.stderr
+
+    result = subprocess.run(
+        ["dt", "doctor", "--root", str(work), "--format", "json"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    checks = json.loads(result.stdout)
+    by_name = {item["name"]: item for item in checks}
+    assert by_name["decisions_dir"]["status"] == "OK"
+    assert by_name["viewer_assets"]["status"] == "OK"

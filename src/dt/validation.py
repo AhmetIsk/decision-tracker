@@ -145,6 +145,63 @@ def _reconstruction_validation_errors(doc: dict[str, Any]) -> list[ValidationMes
     return errors
 
 
+def _review_validation_errors(doc: dict[str, Any]) -> list[ValidationMessage]:
+    if "review" not in doc:
+        return []
+    review = doc.get("review")
+    if not isinstance(review, dict):
+        return [ValidationMessage("REVIEW_INVALID", "review must be an object when present")]
+
+    errors: list[ValidationMessage] = []
+    if review.get("status") not in {"pending", "reviewed", "changes_requested"}:
+        errors.append(
+            ValidationMessage("REVIEW_INVALID", "review.status must be one of pending|reviewed|changes_requested")
+        )
+    reviewed_by = review.get("reviewed_by")
+    if not isinstance(reviewed_by, list) or any(not isinstance(item, str) for item in reviewed_by):
+        errors.append(ValidationMessage("REVIEW_INVALID", "review.reviewed_by must be a list of strings"))
+    reviewed_date = review.get("reviewed_date")
+    if not _validate_original_decision_date(reviewed_date):
+        errors.append(ValidationMessage("REVIEW_INVALID", 'review.reviewed_date must be "unknown" or YYYY-MM-DD'))
+    if "notes" in review and not isinstance(review.get("notes"), str):
+        errors.append(ValidationMessage("REVIEW_INVALID", "review.notes must be a string"))
+    return errors
+
+
+def _backfill_checklist_warnings(doc: dict[str, Any], headings: dict[str, str]) -> list[ValidationMessage]:
+    reconstruction = doc.get("reconstruction")
+    if not isinstance(reconstruction, dict) or reconstruction.get("mode") != "backfill":
+        return []
+    body = headings.get("Backfill Review Checklist", "")
+    if "- [ ]" in body:
+        return [
+            ValidationMessage(
+                "BACKFILL_CHECKLIST_INCOMPLETE",
+                "Backfill review checklist has unchecked items",
+            )
+        ]
+    return []
+
+
+def _path_ref_warnings(valid_links: list[dict[str, Any]], root: Optional[Path]) -> list[ValidationMessage]:
+    if root is None:
+        return []
+    warnings: list[ValidationMessage] = []
+    for index, link in enumerate(valid_links, start=1):
+        ref = link.get("ref")
+        if not isinstance(ref, str) or not ref.startswith("path:"):
+            continue
+        relative = ref.split("path:", 1)[1]
+        path = Path(relative)
+        if path.is_absolute() or ".." in path.parts:
+            continue
+        if not (root / path).exists():
+            warnings.append(
+                ValidationMessage("PATH_REF_NOT_FOUND", f"links[{index}] references missing local path: {ref}")
+            )
+    return warnings
+
+
 def _load_record(path: Path) -> LoadedRecord:
     match = re.match(r"^(DR-\d{4})", path.stem)
     record = LoadedRecord(path=path, yaml_id=match.group(1) if match else path.stem)
@@ -301,6 +358,7 @@ def _validation_messages(
     record: LoadedRecord,
     context: ValidationContext,
     git_root: Optional[Path] = None,
+    root: Optional[Path] = None,
 ) -> tuple[list[ValidationMessage], list[ValidationMessage], list[dict[str, Any]]]:
     errors = list(record.parse_errors)
     warnings: list[ValidationMessage] = []
@@ -374,10 +432,13 @@ def _validation_messages(
 
     errors.extend(_template_validation_errors(doc))
     errors.extend(_reconstruction_validation_errors(doc))
+    errors.extend(_review_validation_errors(doc))
+    warnings.extend(_backfill_checklist_warnings(doc, record.headings))
 
     links = doc.get("links", []) if isinstance(doc.get("links"), list) else []
     valid_links = _validated_links(links, errors, warnings, context.all_ids)
     warnings.extend(_git_commit_warnings(valid_links, git_root))
+    warnings.extend(_path_ref_warnings(valid_links, root))
 
     status = doc.get("status")
     decision_type = doc.get("type")
@@ -447,6 +508,6 @@ def _yaml_valid(doc: dict[str, Any]) -> bool:
     if not required:
         return False
     return not any(
-        message.code in {"TEMPLATE_FIELD_MISSING", "RECONSTRUCTION_INVALID"}
-        for message in [*_template_validation_errors(doc), *_reconstruction_validation_errors(doc)]
+        message.code in {"TEMPLATE_FIELD_MISSING", "RECONSTRUCTION_INVALID", "REVIEW_INVALID"}
+        for message in [*_template_validation_errors(doc), *_reconstruction_validation_errors(doc), *_review_validation_errors(doc)]
     )

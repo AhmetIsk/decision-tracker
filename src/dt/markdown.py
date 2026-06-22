@@ -58,6 +58,7 @@ def _write_decision_file(
     decisions_dir,
     payload: dict,
     sections: dict[str, str],
+    extra_sections: dict[str, str] | None = None,
 ):
     from dt.paths import _slugify_title
 
@@ -67,5 +68,7 @@ def _write_decision_file(
     body_lines = ["---", yaml_text, "---", ""]
     for heading in REQUIRED_HEADINGS:
         body_lines.extend([f"## {heading}", sections.get(heading, "TODO"), ""])
+    for heading, body in (extra_sections or {}).items():
+        body_lines.extend([f"## {heading}", body, ""])
     out_path.write_text("\n".join(body_lines), encoding="utf-8")
     return out_path

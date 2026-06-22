@@ -11,7 +11,9 @@ from dt.commands import (
     backfill_command,
     build_site_command_handler,
     discover_command,
+    doctor_command,
     init_command,
+    list_command,
     new_command,
     report_command,
     validate_command,
@@ -52,6 +54,27 @@ def build_site_command(
 def report(root: Optional[Path] = typer.Option(None, "--root", help="Repository root containing decisions/.")) -> None:
     """Generate exports and metrics."""
     report_command(root)
+
+
+@app.command("list")
+def list_records(
+    status: Optional[str] = typer.Option(None, "--status", help="Filter by status."),
+    type: Optional[str] = typer.Option(None, "--type", help="Filter by decision type."),
+    stage: Optional[str] = typer.Option(None, "--stage", help="Filter by stage."),
+    format: str = typer.Option("table", "--format", help="Output format: table|json."),
+    root: Optional[Path] = typer.Option(None, "--root", help="Repository root containing decisions/."),
+) -> None:
+    """List Decision Records without generating reports."""
+    list_command(status, type, stage, format, root)
+
+
+@app.command()
+def doctor(
+    root: Optional[Path] = typer.Option(None, "--root", help="Repository root to inspect."),
+    format: str = typer.Option("text", "--format", help="Output format: text|json."),
+) -> None:
+    """Check local Decision Tracker setup."""
+    doctor_command(root, format)
 
 
 @app.command()
@@ -120,9 +143,10 @@ def validate(
     all: bool = typer.Option(False, "--all"),
     id: str = typer.Option(None, "--id"),
     root: Optional[Path] = typer.Option(None, "--root", help="Repository root containing decisions/."),
+    strict: bool = typer.Option(False, "--strict", "--fail-on-warn", help="Exit non-zero when warnings are present."),
 ) -> None:
     """Validate one record or all records."""
-    validate_command(all, id, root)
+    validate_command(all, id, root, strict)
 
 
 @app.command()

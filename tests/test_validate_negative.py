@@ -4,6 +4,8 @@ from pathlib import Path
 
 import pytest
 
+from dt.validation import _yaml_valid
+
 
 def _prepare_workdir(tmp_path: Path) -> Path:
     repo = Path(__file__).resolve().parents[1]
@@ -160,6 +162,247 @@ def test_validate_warns_on_todo_sections_without_failing(tmp_path: Path):
     assert "WARN DR-0001: TODO_SECTION: Section still contains TODO placeholder: ## Rationale" in result.stdout
     assert "decisions/DR-0001-draft.md" in result.stdout
     assert "OK DR-0001" in result.stdout
+
+
+def test_validate_strict_fails_on_warnings(tmp_path: Path):
+    work = tmp_path / "work"
+    work.mkdir()
+    decisions_dir = work / "decisions"
+    decisions_dir.mkdir()
+    (decisions_dir / "DR-0001-draft.md").write_text(
+        "---\n"
+        "id: DR-0001\n"
+        "title: Draft decision\n"
+        "status: proposed\n"
+        "type: generic\n"
+        "stage: data\n"
+        "date: '2026-03-14'\n"
+        "owner: ahmet\n"
+        "stakeholders: []\n"
+        "template_version: '1.0'\n"
+        "links: []\n"
+        "---\n"
+        "\n"
+        "## Context\nTODO\n\n## Decision\nx\n\n## Rationale\nx\n\n## Alternatives\nx\n\n## Consequences\nx\n",
+        encoding="utf-8",
+    )
+
+    normal = subprocess.run(["dt", "validate", "--all"], cwd=work, capture_output=True, text=True)
+    strict = subprocess.run(["dt", "validate", "--all", "--strict"], cwd=work, capture_output=True, text=True)
+    alias = subprocess.run(["dt", "validate", "--all", "--fail-on-warn"], cwd=work, capture_output=True, text=True)
+
+    assert normal.returncode == 0
+    assert strict.returncode == 3
+    assert alias.returncode == 3
+    assert strict.stdout == normal.stdout
+
+
+def test_validate_warns_on_missing_local_path_refs(tmp_path: Path):
+    work = tmp_path / "work"
+    work.mkdir()
+    decisions_dir = work / "decisions"
+    decisions_dir.mkdir()
+    (work / "docs").mkdir()
+    (work / "docs" / "exists.md").write_text("ok\n", encoding="utf-8")
+    (decisions_dir / "DR-0001-paths.md").write_text(
+        "---\n"
+        "id: DR-0001\n"
+        "title: Path refs\n"
+        "status: accepted\n"
+        "type: generic\n"
+        "stage: data\n"
+        "date: '2026-03-14'\n"
+        "owner: ahmet\n"
+        "stakeholders: []\n"
+        "template_version: '1.0'\n"
+        "links:\n"
+        "  - id: L-0001\n"
+        "    rel: supported_by\n"
+        "    artifact_kind: document\n"
+        "    ref: path:docs/exists.md\n"
+        "  - id: L-0002\n"
+        "    rel: supported_by\n"
+        "    artifact_kind: document\n"
+        "    ref: path:docs/missing.md\n"
+        "---\n"
+        "\n"
+        "## Context\nx\n\n## Decision\nx\n\n## Rationale\nx\n\n## Alternatives\nx\n\n## Consequences\nx\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(["dt", "validate", "--all"], cwd=work, capture_output=True, text=True)
+    strict = subprocess.run(["dt", "validate", "--all", "--strict"], cwd=work, capture_output=True, text=True)
+
+    assert result.returncode == 0
+    assert "PATH_REF_NOT_FOUND" in result.stdout
+    assert "path:docs/missing.md" in result.stdout
+    assert "path:docs/exists.md" not in result.stdout
+    assert strict.returncode == 3
+
+
+def test_validate_warns_on_incomplete_backfill_checklist(tmp_path: Path):
+    work = tmp_path / "work"
+    work.mkdir()
+    decisions_dir = work / "decisions"
+    decisions_dir.mkdir()
+    (decisions_dir / "DR-0001-backfill.md").write_text(
+        "---\n"
+        "id: DR-0001\n"
+        "title: Backfill\n"
+        "status: proposed\n"
+        "type: generic\n"
+        "stage: data\n"
+        "date: '2026-03-14'\n"
+        "owner: ahmet\n"
+        "stakeholders: []\n"
+        "template_version: '1.0'\n"
+        "links: []\n"
+        "reconstruction:\n"
+        "  mode: backfill\n"
+        "  original_decision_date: unknown\n"
+        "  evidence_confidence: medium\n"
+        "  evidence_sources:\n"
+        "    - path:docs/notes.md\n"
+        "  known_gaps: []\n"
+        "---\n"
+        "\n"
+        "## Context\nx\n\n## Decision\nx\n\n## Rationale\nx\n\n## Alternatives\nx\n\n## Consequences\nx\n\n"
+        "## Backfill Review Checklist\n- [ ] Complete rationale\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(["dt", "validate", "--all"], cwd=work, capture_output=True, text=True)
+
+    assert result.returncode == 0
+    assert "BACKFILL_CHECKLIST_INCOMPLETE" in result.stdout
+
+
+def test_validate_accepts_completed_backfill_checklist(tmp_path: Path):
+    work = tmp_path / "work"
+    work.mkdir()
+    decisions_dir = work / "decisions"
+    decisions_dir.mkdir()
+    (decisions_dir / "DR-0001-backfill.md").write_text(
+        "---\n"
+        "id: DR-0001\n"
+        "title: Backfill\n"
+        "status: proposed\n"
+        "type: generic\n"
+        "stage: data\n"
+        "date: '2026-03-14'\n"
+        "owner: ahmet\n"
+        "stakeholders: []\n"
+        "template_version: '1.0'\n"
+        "links: []\n"
+        "reconstruction:\n"
+        "  mode: backfill\n"
+        "  original_decision_date: unknown\n"
+        "  evidence_confidence: medium\n"
+        "  evidence_sources:\n"
+        "    - path:docs/notes.md\n"
+        "  known_gaps: []\n"
+        "---\n"
+        "\n"
+        "## Context\nx\n\n## Decision\nx\n\n## Rationale\nx\n\n## Alternatives\nx\n\n## Consequences\nx\n\n"
+        "## Backfill Review Checklist\n- [x] Complete rationale\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(["dt", "validate", "--all"], cwd=work, capture_output=True, text=True)
+
+    assert result.returncode == 0
+    assert "BACKFILL_CHECKLIST_INCOMPLETE" not in result.stdout
+
+
+def test_validate_optional_review_metadata(tmp_path: Path):
+    work = tmp_path / "work"
+    work.mkdir()
+    decisions_dir = work / "decisions"
+    decisions_dir.mkdir()
+    (decisions_dir / "DR-0001-review.md").write_text(
+        "---\n"
+        "id: DR-0001\n"
+        "title: Review metadata\n"
+        "status: proposed\n"
+        "type: generic\n"
+        "stage: data\n"
+        "date: '2026-03-14'\n"
+        "owner: ahmet\n"
+        "stakeholders: []\n"
+        "template_version: '1.0'\n"
+        "links: []\n"
+        "review:\n"
+        "  status: reviewed\n"
+        "  reviewed_by: [advisor]\n"
+        "  reviewed_date: '2026-03-15'\n"
+        "  notes: Looks complete\n"
+        "---\n"
+        "\n"
+        "## Context\nx\n\n## Decision\nx\n\n## Rationale\nx\n\n## Alternatives\nx\n\n## Consequences\nx\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(["dt", "validate", "--all"], cwd=work, capture_output=True, text=True)
+
+    assert result.returncode == 0
+    assert "OK DR-0001" in result.stdout
+
+
+def test_validate_rejects_invalid_review_metadata(tmp_path: Path):
+    work = tmp_path / "work"
+    work.mkdir()
+    decisions_dir = work / "decisions"
+    decisions_dir.mkdir()
+    (decisions_dir / "DR-0001-review.md").write_text(
+        "---\n"
+        "id: DR-0001\n"
+        "title: Review metadata\n"
+        "status: proposed\n"
+        "type: generic\n"
+        "stage: data\n"
+        "date: '2026-03-14'\n"
+        "owner: ahmet\n"
+        "stakeholders: []\n"
+        "template_version: '1.0'\n"
+        "links: []\n"
+        "review:\n"
+        "  status: done\n"
+        "  reviewed_by: advisor\n"
+        "  reviewed_date: '2026-02-30'\n"
+        "  notes: 123\n"
+        "---\n"
+        "\n"
+        "## Context\nx\n\n## Decision\nx\n\n## Rationale\nx\n\n## Alternatives\nx\n\n## Consequences\nx\n",
+        encoding="utf-8",
+    )
+
+    result = subprocess.run(["dt", "validate", "--all"], cwd=work, capture_output=True, text=True)
+
+    assert result.returncode == 3
+    assert result.stdout.count("REVIEW_INVALID") == 4
+
+
+def test_yaml_valid_rejects_invalid_review_metadata():
+    doc = {
+        "id": "DR-0001",
+        "title": "Review metadata",
+        "status": "proposed",
+        "type": "generic",
+        "stage": "data",
+        "date": "2026-03-14",
+        "owner": "ahmet",
+        "stakeholders": [],
+        "template_version": "1.0",
+        "links": [],
+        "review": {
+            "status": "done",
+            "reviewed_by": "advisor",
+            "reviewed_date": "2026-02-30",
+            "notes": 123,
+        },
+    }
+
+    assert _yaml_valid(doc) is False
 
 
 def test_validate_requires_model_spec_fields(tmp_path: Path):
