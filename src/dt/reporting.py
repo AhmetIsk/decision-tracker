@@ -158,7 +158,7 @@ def generate_report(root: Path) -> None:
         raise typer.Exit(code=2)
 
     _clean_stale_outputs(root)
-    files = sorted(decisions_dir.glob("*.md"), key=lambda path: path.name)
+    files = sorted(decisions_dir.glob("DR-*.md"), key=lambda path: path.name)
     loaded_records = [_load_record(path) for path in files]
     context = _validation_context(loaded_records)
     git_root = _git_repo_root(root)

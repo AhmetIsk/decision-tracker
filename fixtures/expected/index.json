@@ -28,8 +28,8 @@
     },
     "stage": "monitoring",
     "stakeholders": [
-      "reviewer",
-      "ML engineer"
+      "ML engineer",
+      "reviewer"
     ],
     "status": "accepted",
     "title": "Introduce decision tracking artifacts in repo",
@@ -71,8 +71,8 @@
     },
     "stage": "training",
     "stakeholders": [
-      "supervisor",
-      "ML engineer"
+      "ML engineer",
+      "supervisor"
     ],
     "status": "accepted",
     "title": "Adopt Transformer encoder as baseline model",
@@ -121,8 +121,8 @@
     },
     "stage": "evaluation",
     "stakeholders": [
-      "reviewer",
-      "ML engineer"
+      "ML engineer",
+      "reviewer"
     ],
     "status": "accepted",
     "title": "Switch evaluation to stratified 70/30 split with fixed seed",
@@ -199,8 +199,8 @@
     },
     "stage": "monitoring",
     "stakeholders": [
-      "reviewer",
-      "ML engineer"
+      "ML engineer",
+      "reviewer"
     ],
     "status": "accepted",
     "title": "Replace generic dataset pin rule with evaluation_protocol template requirement",
@@ -227,9 +227,9 @@
     },
     "stage": "evaluation",
     "stakeholders": [
-      "supervisor",
+      "ML engineer",
       "reviewer",
-      "ML engineer"
+      "supervisor"
     ],
     "status": "proposed",
     "title": "Adjust F1 acceptance threshold from 0.75 to 0.78",
