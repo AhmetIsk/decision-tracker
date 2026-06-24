@@ -207,7 +207,7 @@ def _load_records_for_command(root: Path):
 
 def _list_record_row(record) -> dict[str, object]:
     if record.parse_errors:
-        message = record.parse_errors[0].message if record.parse_errors else "(parse error)"
+        message = record.parse_errors[0].message
         return {
             "id": str(record.yaml_id or ""),
             "status": "(parse error)",
