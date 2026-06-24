@@ -35,6 +35,10 @@ def test_report_matches_golden(tmp_path: Path):
     for expected, actual in pairs:
         assert actual.exists(), f"Missing output: {actual}"
         assert expected.read_bytes() == actual.read_bytes(), f"Mismatch in {actual.name}"
+    report_text = (reports_dir / "report.md").read_text(encoding="utf-8")
+    assert "## Executive summary" in report_text
+    assert "## Attention items" in report_text
+    assert "## Reconstructed records" in report_text
 
 
 def test_report_is_deterministic_across_runs(tmp_path: Path):
@@ -124,6 +128,40 @@ def test_report_discovers_root_from_subdirectory(tmp_path: Path):
     assert (work / "decisions" / "index.json").exists()
     assert (work / "reports" / "metrics.csv").exists()
     assert not (subdir / "reports" / "metrics.csv").exists()
+
+
+def test_report_discovery_prefers_decisions_over_nested_git(tmp_path: Path):
+    repo = Path(__file__).resolve().parents[1]
+    fixtures_decisions = repo / "fixtures" / "decisions"
+
+    work = tmp_path / "work"
+    work.mkdir()
+    decisions_dir = work / "decisions"
+    nested = work / "nested"
+    subdir = nested / "deeper"
+    decisions_dir.mkdir()
+    (nested / ".git").mkdir(parents=True)
+    subdir.mkdir()
+    for path in fixtures_decisions.glob("*.md"):
+        shutil.copy2(path, decisions_dir / path.name)
+
+    run(["dt", "report"], cwd=subdir)
+
+    assert (work / "decisions" / "index.json").exists()
+    assert (work / "reports" / "metrics.csv").exists()
+    assert not (nested / "reports" / "metrics.csv").exists()
+
+
+def test_report_discovery_falls_back_to_git_root_without_decisions(tmp_path: Path):
+    work = tmp_path / "work"
+    subdir = work / "nested" / "deeper"
+    (work / ".git").mkdir(parents=True)
+    subdir.mkdir(parents=True)
+
+    result = subprocess.run(["dt", "report"], cwd=subdir, capture_output=True, text=True)
+
+    assert result.returncode == 2
+    assert f"FAIL DECISIONS_DIR_MISSING: No decisions/ directory found at {work}" in result.stdout
 
 
 def test_report_uses_explicit_root(tmp_path: Path):

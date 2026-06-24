@@ -388,10 +388,13 @@ def test_backfill_creates_valid_proposed_record_with_reconstruction(tmp_path: Pa
         },
     ]
     assert "model_spec" in front
+    assert "## Backfill Review Checklist" in created.read_text(encoding="utf-8")
+    assert "- [ ] Confirm original decision date or keep `unknown`" in created.read_text(encoding="utf-8")
 
     validate = _run(["dt", "validate", "--all"], tmp_path)
     assert validate.returncode == 0, validate.stdout + validate.stderr
     assert "OK DR-0001" in validate.stdout
+    assert "BACKFILL_CHECKLIST_INCOMPLETE" in validate.stdout
 
     report = _run(["dt", "report"], tmp_path)
     assert report.returncode == 0, report.stdout + report.stderr

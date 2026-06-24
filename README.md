@@ -53,6 +53,7 @@ If `dt` is installed:
 dt init
 dt new --title "Adopt Transformer encoder as baseline model" --stage training --type model --owner ahmet
 dt validate --all
+dt list
 dt report
 dt build-site
 ```
@@ -63,16 +64,36 @@ If running directly from source:
 PYTHONPATH=src python3 -m dt.cli init
 PYTHONPATH=src python3 -m dt.cli new --title "Adopt Transformer encoder as baseline model" --stage training --type model --owner ahmet
 PYTHONPATH=src python3 -m dt.cli validate --all
+PYTHONPATH=src python3 -m dt.cli list
 PYTHONPATH=src python3 -m dt.cli report
 PYTHONPATH=src python3 -m dt.cli build-site
 ```
 
-All commands accept `--root PATH`. If omitted, the CLI walks upward from the current directory to find `decisions/` or `.git`, so commands also work from repository subdirectories. Run `dt init` before `dt new`; `new` refuses to create records in an uninitialized directory.
+All commands accept `--root PATH`. If omitted, the CLI walks upward from the current directory, preferring the nearest `decisions/` ancestor and then falling back to the nearest `.git` ancestor. Use `--root` in unusual nested layouts. Run `dt init` before `dt new`; `new` refuses to create records in an uninitialized directory.
 
 Use `--git-head` with `new` to add the current Git commit as a stable `git:commit:<sha>` link:
 
 ```bash
 PYTHONPATH=src python3 -m dt.cli new --title "Record training implementation" --stage training --type generic --owner ahmet --git-head
+```
+
+Use `dt list` for a quick terminal inventory:
+
+```bash
+dt list --status accepted
+dt list --type model --format json
+```
+
+Use strict validation in CI when warnings should block a merge:
+
+```bash
+dt validate --all --strict
+```
+
+Use `dt doctor` to check whether the current repository is initialized correctly:
+
+```bash
+dt doctor
 ```
 
 ## Decision Types
@@ -165,6 +186,20 @@ dt build-site
 
 `dt backfill` guides historical reconstruction and creates a normal `proposed` Decision Record with a `reconstruction` block. Use `reconstruction.known_gaps` when evidence is incomplete. Commit history should be treated as evidence, not proof of the original rationale.
 
+Backfilled records also include a review checklist. Unchecked checklist items produce a warning so reviewers can see what still needs confirmation.
+
+Use normal validation while reconstruction is in progress; use `dt validate --strict` after TODOs and checklist items are completed or intentionally accepted by review.
+
+Decision Records may optionally include review metadata:
+
+```yaml
+review:
+  status: pending
+  reviewed_by: []
+  reviewed_date: "unknown"
+  notes: ""
+```
+
 ## Use In Another Repository
 
 In another ML project:
@@ -199,8 +234,12 @@ Validation checks:
 - template-specific required fields
 - template-specific minimum links
 - missing local Git commits for `git:commit:<sha>` refs, when validation runs inside a Git repository
+- unavailable Git commit checks, when a Git repository is detected but commit lookup cannot complete
+- missing local files for `path:` refs, as warning-only evidence checks
 - superseded cross-record consistency
 - ref format validity
+
+Warnings remain advisory by default. Use `dt validate --strict` or `dt validate --fail-on-warn` when warnings should fail CI.
 
 Common failure codes include:
 

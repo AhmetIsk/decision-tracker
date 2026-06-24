@@ -61,3 +61,10 @@ class DiscoverCandidate:
     title: str
     stage: str
     decision_type: str
+
+
+@dataclass
+class DoctorCheck:
+    name: str
+    status: str
+    message: str

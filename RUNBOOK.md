@@ -225,7 +225,7 @@ Examples of valid refs:
 - `path:docs/model-selection-notes.md`
 - `decision:DR-0004`
 
-The CLI validates refs syntactically. For `git:commit:<sha>` refs, validation also checks whether the commit exists in the local Git repository when the command is run inside one. This is warning-only and does not fetch from remotes.
+The CLI validates refs syntactically. For `git:commit:<sha>` refs, validation also checks whether the commit exists in the local Git repository when the command is run inside one. `GIT_COMMIT_NOT_FOUND` means Git ran and the commit is absent from local history; `GIT_COMMIT_CHECK_UNAVAILABLE` means a Git repository was detected but the commit check could not complete. For `path:` refs, validation warns if the local file is missing. These evidence checks are warning-only unless strict validation is enabled.
 
 ## Commands
 
@@ -251,7 +251,7 @@ PYTHONPATH=src python3 -m dt.cli report
 PYTHONPATH=src python3 -m dt.cli build-site
 ```
 
-All commands accept `--root PATH`. If you omit it, the CLI walks upward from the current directory and uses the first directory containing `decisions/` or `.git`. This means you can run `dt validate --all` or `dt report` from a subdirectory of the repository.
+All commands accept `--root PATH`. If you omit it, the CLI walks upward from the current directory, prefers the nearest ancestor containing `decisions/`, and falls back to the nearest `.git` ancestor. This means you can run `dt validate --all` or `dt report` from a subdirectory of the repository. Use `--root` in unusual nested layouts where multiple ancestors could look like project roots.
 
 To link a new record to the current Git commit, add `--git-head`:
 
@@ -318,6 +318,7 @@ Examples:
 ```bash
 PYTHONPATH=src python3 -m dt.cli validate --all
 PYTHONPATH=src python3 -m dt.cli validate --id DR-0003
+PYTHONPATH=src python3 -m dt.cli validate --all --strict
 ```
 
 Possible output:
@@ -332,8 +333,37 @@ WARN DR-0009: TODO_SECTION: Section still contains TODO placeholder: ## Context 
 Exit codes:
 
 - `0`: all selected records passed
-- `3`: validation failures
+- `3`: validation failures, or warnings when `--strict` / `--fail-on-warn` is used
 - `2`: filesystem error such as missing `/decisions`
+
+Warnings are advisory by default. Strict validation is useful in CI when TODO placeholders, missing local `path:` evidence, duplicate stakeholders, or missing local Git commits should block a merge.
+
+### `dt list`
+
+Prints a quick inventory without generating reports.
+
+Examples:
+
+```bash
+dt list
+dt list --status accepted
+dt list --type model --format json
+```
+
+Default output is a table with ID, status, type, stage, date, owner, and title. JSON output is deterministic and useful for scripts.
+
+### `dt doctor`
+
+Checks whether the current repository is ready to use Decision Tracker.
+
+Examples:
+
+```bash
+dt doctor
+dt doctor --format json
+```
+
+The command checks package availability, Git availability, Git repo detection, `decisions/`, the Decision Tracker `.gitignore` block, generated-output ignore behavior, the scaffolded Pages workflow, and packaged viewer assets. It exits `2` only for setup failures.
 
 ### `dt report`
 
@@ -422,7 +452,7 @@ reconstruction:
     - Original meeting notes unavailable
 ```
 
-Keep backfilled records as `proposed` until a human reviews the reconstructed context, rationale, alternatives, consequences, and any template-specific fields.
+Keep backfilled records as `proposed` until a human reviews the reconstructed context, rationale, alternatives, consequences, and any template-specific fields. Use normal validation during reconstruction, then use `dt validate --strict` once TODO and checklist warnings are resolved or intentionally accepted by review.
 
 ## Typical Workflow
 
@@ -495,6 +525,22 @@ dt build-site
 ```
 
 Use `reconstruction.known_gaps` to make missing historical context explicit. This is important for auditability: a decision recorded at the time is not the same as a decision reconstructed later.
+
+Backfilled records include a `## Backfill Review Checklist` section. Leave unchecked items visible while reconstruction is incomplete; validation emits `BACKFILL_CHECKLIST_INCOMPLETE` as a warning. Once a reviewer confirms the reconstructed date, confidence, rationale, alternatives, consequences, gaps, and status, mark the checklist items as checked.
+
+After that review step, run `dt validate --strict` so any remaining advisory warnings are treated as blockers before publication.
+
+Decision Records may also include optional review metadata:
+
+```yaml
+review:
+  status: pending
+  reviewed_by: []
+  reviewed_date: "unknown"
+  notes: ""
+```
+
+When present, review metadata is validated, exported to `index.json`, shown in the viewer detail panel, and summarized in reports.
 
 ### Scenario 3: Recording an Evaluation Protocol
 
